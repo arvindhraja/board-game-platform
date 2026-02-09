@@ -18,6 +18,10 @@ class ChessGame {
     }
 
     processAction(playerId, action, data) {
+        if (action === 'getState') {
+            return this.getState();
+        }
+
         if (action === 'move') {
             const { from, to, promotion } = data;
             const turn = this.chess.turn(); // 'w' or 'b'

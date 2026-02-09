@@ -54,6 +54,16 @@ class FourPlayerChess {
     }
 
     processAction(playerId, action, data) {
+        if (action === 'getState') {
+            return {
+                board: this.board,
+                turn: this.turnOrder[this.currentTurnIndex],
+                eliminated: this.eliminated,
+                gameOver: this.gameOver,
+                winner: this.winner
+            };
+        }
+
         if (action === 'move') {
             const { from, to } = data;
             const playerColor = this.getPlayerColor(playerId);

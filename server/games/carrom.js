@@ -58,6 +58,16 @@ class CarromGame {
     }
 
     processAction(playerId, action, data) {
+        if (action === 'getState') {
+            return {
+                coins: this.coins,
+                striker: this.striker,
+                scores: this.scores,
+                turn: this.currentPlayerIndex,
+                gameOver: this.isGameOver()
+            };
+        }
+
         const pIndex = this.players.indexOf(playerId);
 
         if (this.gameState !== 'active' && this.players.length < 2) return null;
