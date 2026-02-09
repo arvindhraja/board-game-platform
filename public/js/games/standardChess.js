@@ -99,6 +99,24 @@ class StandardChessClient {
             this.chess.load(data.fen);
             this.renderBoard();
         }
+
+        if (data.lastMove) {
+            // Sound Effects
+            if (window.playSound) {
+                // Determine sound type
+                if (data.checkmate || data.check) {
+                    window.playSound('check');
+                } else if (data.lastMove.captured || data.lastMove.flags.includes('c')) {
+                    window.playSound('capture');
+                } else {
+                    window.playSound('move');
+                }
+
+                if (data.gameOver) {
+                    setTimeout(() => window.playSound('game-end'), 500);
+                }
+            }
+        }
     }
 }
 
