@@ -27,24 +27,39 @@ class FourPlayerChessClient {
         for (let r = 0; r < 14; r++) {
             for (let c = 0; c < 14; c++) {
                 const square = document.createElement('div');
-                square.classList.add('square');
+                square.classList.add('square'); // Unified square class for size
                 square.dataset.r = r;
                 square.dataset.c = c;
 
-                // Color pattern
-                if ((r + c) % 2 === 0) square.classList.add('light');
-                else square.classList.add('dark');
-
                 // Handle invalid corners
                 if (this.isInvalidSquare(r, c)) {
+                    square.classList.add('four-square'); // Used for invalid transparency
                     square.classList.add('invalid');
                     square.style.visibility = 'hidden';
+                } else {
+                    // Color pattern
+                    if ((r + c) % 2 === 0) square.classList.add('light');
+                    else square.classList.add('dark');
                 }
 
                 const piece = boardData[r][c];
                 if (piece) {
                     const img = document.createElement('img');
-                    img.src = `assets/pieces/${piece.color}${piece.type}.svg`;
+
+                    // Logic: Map 'red' to 'w' assets with filter, 'blue' to 'b' assets with filter
+                    // 'white' -> 'w', 'black' -> 'b'
+                    let prefix = 'w';
+                    if (piece.color === 'black' || piece.color === 'blue') prefix = 'b';
+
+                    img.src = `assets/pieces/${prefix}${piece.type.toLowerCase()}.svg`;
+
+                    // Apply filters for Red and Blue
+                    if (piece.color === 'red') {
+                        img.style.filter = 'sepia(1) saturate(5) hue-rotate(-50deg)'; // Red-ish tint
+                    } else if (piece.color === 'blue') {
+                        img.style.filter = 'sepia(1) saturate(5) hue-rotate(180deg)'; // Blue-ish tint
+                    }
+
                     img.classList.add('piece');
                     img.draggable = true;
                     square.appendChild(img);

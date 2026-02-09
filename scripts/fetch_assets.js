@@ -2,7 +2,12 @@ const fs = require('fs');
 const https = require('https');
 const path = require('path');
 
-const pieces = ['wP', 'wN', 'wB', 'wR', 'wQ', 'wK', 'bP', 'bN', 'bB', 'bR', 'bQ', 'bK'];
+// Lichess uses CamelCase (wP, wN, etc.)
+// We want to map these to lowercase for local usage (wp.svg, wn.svg) to match chess.js output
+const pieces = {
+    'wP': 'wp', 'wN': 'wn', 'wB': 'wb', 'wR': 'wr', 'wQ': 'wq', 'wK': 'wk',
+    'bP': 'bp', 'bN': 'bn', 'bB': 'bb', 'bR': 'br', 'bQ': 'bq', 'bK': 'bk'
+};
 const baseURL = 'https://raw.githubusercontent.com/lichess-org/lila/master/public/piece/cburnett/';
 const destDir = path.join(__dirname, '../public/assets/pieces');
 
@@ -10,19 +15,19 @@ if (!fs.existsSync(destDir)) {
     fs.mkdirSync(destDir, { recursive: true });
 }
 
-pieces.forEach(piece => {
-    const url = `${baseURL}${piece}.svg`;
-    const dest = path.join(destDir, `${piece}.svg`);
+Object.entries(pieces).forEach(([srcName, destName]) => {
+    const url = `${baseURL}${srcName}.svg`;
+    const dest = path.join(destDir, `${destName}.svg`);
 
     const file = fs.createWriteStream(dest);
     https.get(url, (response) => {
         response.pipe(file);
         file.on('finish', () => {
             file.close();
-            console.log(`Downloaded ${piece}.svg`);
+            console.log(`Downloaded ${destName}.svg`);
         });
     }).on('error', (err) => {
         fs.unlink(dest);
-        console.error(`Error downloading ${piece}.svg: ${err.message}`);
+        console.error(`Error downloading ${destName}.svg: ${err.message}`);
     });
 });

@@ -30,7 +30,8 @@ class StandardChessClient {
                 const piece = board[row][col];
                 if (piece) {
                     const img = document.createElement('img');
-                    img.src = `assets/pieces/${piece.color}${piece.type}.svg`;
+                    // piece.color is 'w' or 'b', perfect for our assets
+                    img.src = `assets/pieces/${piece.color}${piece.type.toLowerCase()}.svg`;
                     img.classList.add('piece');
                     img.draggable = true;
                     img.dataset.square = this.toSquare(row, col);

@@ -32,7 +32,7 @@ class CarromClient {
 
     setupInput() {
         this.canvas.addEventListener('mousedown', (e) => {
-            if (!this.isMyTurn) return;
+            // if (!this.isMyTurn) return; // Allow for now, server validates
             const rect = this.canvas.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;

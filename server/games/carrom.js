@@ -70,8 +70,11 @@ class CarromGame {
 
         const pIndex = this.players.indexOf(playerId);
 
-        if (this.gameState !== 'active' && this.players.length < 2) return null;
-        if (pIndex !== this.currentPlayerIndex) return null; // Not your turn
+        // Allow single player testing if room only has 1 player
+        const isTesting = (this.gameState === 'waiting' && this.players.length === 1);
+
+        if (!isTesting && this.gameState !== 'active') return null;
+        if (!isTesting && pIndex !== this.currentPlayerIndex) return null; // Not your turn
 
         if (action === 'strike') {
             const { angle, power, positionX } = data;
