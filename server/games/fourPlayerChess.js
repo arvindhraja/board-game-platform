@@ -1,13 +1,24 @@
 class FourPlayerChess {
     constructor() {
         this.boardSize = 14;
-        this.players = { white: null, black: null, red: null, blue: null };
+        this.players = { white: null, red: null, black: null, blue: null };
         this.turnOrder = ['white', 'red', 'black', 'blue']; // Clockwise
         this.currentTurnIndex = 0;
         this.eliminated = [];
         this.board = this.initializeBoard();
         this.gameOver = false;
         this.winner = null;
+    }
+
+    assignPlayer(playerId) {
+        // Order: White, Red, Black, Blue (as per turnOrder)
+        for (const color of this.turnOrder) {
+            if (!this.players[color]) {
+                this.players[color] = playerId;
+                return color;
+            }
+        }
+        return 'spectator';
     }
 
     initializeBoard() {
@@ -29,9 +40,9 @@ class FourPlayerChess {
         this.setupArmy(board, 'white', 13, 12, 3);
         // Black (Top side, rows 0,1, cols 3-10)
         this.setupArmy(board, 'black', 0, 1, 3);
-        // Red (Left side, cols 0,1, rows 3-10) - rotated
+        // Red (Left side, cols 0,1, rows 3-10) - rotated logic handled by setupArmyRotated
         this.setupArmyRotated(board, 'red', 0, 1, 3);
-        // Blue (Right side, cols 12,13, rows 3-10) - rotated
+        // Blue (Right side, cols 12,13, rows 3-10) - rotated logic handled by setupArmyRotated
         this.setupArmyRotated(board, 'blue', 13, 12, 3);
 
         return board;
@@ -60,12 +71,13 @@ class FourPlayerChess {
                 turn: this.turnOrder[this.currentTurnIndex],
                 eliminated: this.eliminated,
                 gameOver: this.gameOver,
-                winner: this.winner
+                winner: this.winner,
+                players: this.players
             };
         }
 
         if (action === 'move') {
-            const { from, to } = data;
+            const { from, to, promotion } = data;
 
             // Allow single player testing
             const isTesting = (Object.values(this.players).filter(p => p !== null).length <= 1);
@@ -73,20 +85,12 @@ class FourPlayerChess {
             if (!isTesting) {
                 const playerColor = this.getPlayerColor(playerId);
                 if (playerColor !== this.turnOrder[this.currentTurnIndex]) {
-                    throw new Error('Not your turn');
-                }
-            } else {
-                // In testing, assume player can move any piece
-                // But we still need a color to validate correct piece movement
-                // Let's just use the piece's color from the board
-                const piece = this.board[from.r][from.c];
-                if (piece) {
-                    // Pass
+                    // throw new Error('Not your turn'); // Ideally throw but returning null is safer for socket
+                    return null;
                 }
             }
 
             // We need to pass the color to isValidMove. 
-            // If testing, use piece color. If not, use player color (which must match piece color in isValidMove)
             const piece = this.board[from.r][from.c];
             const colorToValidate = isTesting ? (piece ? piece.color : 'white') : this.getPlayerColor(playerId);
 
@@ -101,26 +105,20 @@ class FourPlayerChess {
                     gameOver: this.gameOver,
                     winner: this.winner
                 };
-            } else {
-                throw new Error('Invalid move');
             }
         }
         return null;
     }
 
     isValidMove(from, to, color) {
-        // Simplified validation:
-        // 1. Check bounds
-        // 2. Check if piece belongs to player
-        // 3. Check simple piece logic (Rook, Bishop, etc.)
-        // 4. Check path clear
-        // 5. Does not account for Check/Checkmate fully in this simplified version
-
+        // Validation Placeholder
         const piece = this.board[from.r][from.c];
         if (!piece || piece.color !== color) return false;
 
-        // Todo: extensive move validation logic
-        // For prototype, we allow basic pseudo-legal moves
+        // Basic check if landing on own piece
+        const target = this.board[to.r][to.c];
+        if (target && target.color === color) return false;
+
         return true;
     }
 
@@ -129,14 +127,15 @@ class FourPlayerChess {
         this.board[to.r][to.c] = piece;
         this.board[from.r][from.c] = null;
         piece.moved = true;
-
-        // Check checkmate/elimination logic here
     }
 
     nextTurn() {
         let nextIndex = (this.currentTurnIndex + 1) % 4;
-        while (this.eliminated.includes(this.turnOrder[nextIndex])) {
+        let loops = 0;
+        // Skip eliminated players
+        while (this.eliminated.includes(this.turnOrder[nextIndex]) && loops < 4) {
             nextIndex = (nextIndex + 1) % 4;
+            loops++;
         }
         this.currentTurnIndex = nextIndex;
     }

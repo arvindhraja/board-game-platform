@@ -5,6 +5,8 @@ class CarromClient {
         this.boardEl = document.getElementById('game-board-area');
         this.canvas = null;
         this.ctx = null;
+        this.myId = socket.id;
+        this.myIndex = -1;
 
         // Game Constants
         this.BOARD_SIZE = 800;
@@ -26,13 +28,16 @@ class CarromClient {
             isDragging: false
         };
 
+        this.turnIndex = 0;
+        this.isMyTurn = false;
+        this.animating = false;
+
+        // Interaction
         this.dragStart = { x: 0, y: 0 };
         this.dragCurrent = { x: 0, y: 0 };
-        this.power = 0;
-        this.angle = 0;
 
-        this.isMyTurn = true; // For local/testing
-        this.animating = false;
+        // Turn Logic
+        this.coinsBeforeTurn = 0;
     }
 
     init() {
@@ -40,71 +45,28 @@ class CarromClient {
             <div style="position: relative; width: 100%; max-width: 600px; margin: 0 auto;">
                 <canvas id="carrom-board" width="800" height="800" style="width: 100%; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); background: #fdf5e6;"></canvas>
                 <div id="game-ui" style="position: absolute; top: 10px; left: 10px; pointer-events: none;">
-                    <div style="background: rgba(0,0,0,0.6); color: white; padding: 5px 10px; border-radius: 4px;">P1 Score: <span id="p1-score">0</span></div>
+                     <div style="background: rgba(0,0,0,0.6); color: white; padding: 5px 10px; border-radius: 4px;">
+                        <span id="turn-indicator" style="font-weight: bold;">Waiting...</span>
+                     </div>
                 </div>
             </div>
         `;
         this.canvas = document.getElementById('carrom-board');
         this.ctx = this.canvas.getContext('2d');
 
-        // Initial Board Setup
-        this.setupBoard();
         this.setupInput();
 
         // Animation Loop
         this.lastTime = 0;
         requestAnimationFrame(this.gameLoop.bind(this));
 
-        console.log('High-Polish Carrom Initialized');
-    }
+        console.log('Carrom Multiplayer Client Initialized');
 
-    setupBoard() {
-        // Arrange coins in center
-        this.coins = [];
-        const center = this.BOARD_SIZE / 2;
-
-        // Queen
-        this.coins.push({ x: center, y: center, color: 'red', radius: this.COIN_RADIUS, mass: 1, vx: 0, vy: 0, active: true });
-
-        // Inner Circle (6 coins)
-        for (let i = 0; i < 6; i++) {
-            const angle = (i * 60) * Math.PI / 180;
-            const dist = this.COIN_RADIUS * 2.1;
-            this.coins.push({
-                x: center + Math.cos(angle) * dist,
-                y: center + Math.sin(angle) * dist,
-                color: i % 2 === 0 ? 'white' : 'black',
-                radius: this.COIN_RADIUS, mass: 1, vx: 0, vy: 0, active: true
-            });
-        }
-
-        // Outer Circle (12 coins)
-        for (let i = 0; i < 12; i++) {
-            const angle = (i * 30) * Math.PI / 180;
-            const dist = this.COIN_RADIUS * 4.1;
-            // Pattern: W,W,B,W,W,B... simplified for now
-            this.coins.push({
-                x: center + Math.cos(angle) * dist,
-                y: center + Math.sin(angle) * dist,
-                color: (i % 3 !== 2) ? 'white' : 'black', // Just a pattern
-                radius: this.COIN_RADIUS, mass: 1, vx: 0, vy: 0, active: true
-            });
-        }
-
-        // Reset Striker
-        this.resetStriker();
-    }
-
-    resetStriker() {
-        this.striker.x = this.BOARD_SIZE / 2;
-        this.striker.y = 660; // Baseline
-        this.striker.vx = 0;
-        this.striker.vy = 0;
-        this.striker.active = true;
+        // Request State
+        this.socket.emit('gameAction', { roomId: this.roomId, action: 'getState' });
     }
 
     setupInput() {
-        // Mapping mouse/touch coords to canvas
         const getPos = (e) => {
             const rect = this.canvas.getBoundingClientRect();
             const scaleX = this.canvas.width / rect.width;
@@ -117,20 +79,33 @@ class CarromClient {
             };
         };
 
-        this.canvas.addEventListener('mousedown', (e) => this.handleDragStart(getPos(e)));
-        this.canvas.addEventListener('touchstart', (e) => { e.preventDefault(); this.handleDragStart(getPos(e)); }, { passive: false });
+        const start = (e) => {
+            // allow default if not on canvas? No, canvas is target
+            // Prevent scrolling on touch
+            if (e.target === this.canvas) e.preventDefault();
+            this.handleDragStart(getPos(e));
+        };
+        const move = (e) => {
+            if (e.target === this.canvas) e.preventDefault();
+            this.handleDragMove(getPos(e));
+        };
+        const end = (e) => {
+            this.handleDragEnd();
+        };
 
-        window.addEventListener('mousemove', (e) => this.handleDragMove(getPos(e)));
-        window.addEventListener('touchmove', (e) => { this.handleDragMove(getPos(e)); }, { passive: false });
+        this.canvas.addEventListener('mousedown', start);
+        this.canvas.addEventListener('touchstart', start, { passive: false });
 
-        window.addEventListener('mouseup', () => this.handleDragEnd());
-        window.addEventListener('touchend', () => this.handleDragEnd());
+        window.addEventListener('mousemove', move);
+        window.addEventListener('touchmove', move, { passive: false });
+
+        window.addEventListener('mouseup', end);
+        window.addEventListener('touchend', end);
     }
 
     handleDragStart(pos) {
-        if (!this.striker.active || this.animating) return;
+        if (!this.striker.active || this.animating || !this.isMyTurn) return;
 
-        // Check if touching striker (allow slightly larger area)
         const dx = pos.x - this.striker.x;
         const dy = pos.y - this.striker.y;
         if (Math.hypot(dx, dy) < this.striker.radius * 2) {
@@ -138,8 +113,16 @@ class CarromClient {
             this.dragStart = pos;
             this.dragCurrent = pos;
         } else {
-            // Allow moving striker left/right on baseline
-            if (pos.y > 620 && pos.y < 700) {
+            // Slide on baseline logic
+            // Only allow sliding if Y matches my baseline approximate
+            // P1: y approx 660. P2: y approx 140 (if we implemented P2 view)
+            // But currently I am just using absolute coords. 
+            // So if I am P2, I see upside down? Or we rotate?
+            // "GameSnacks polish" -> Should rotate.
+            // But rotation requires context transform.
+            // Simple approach: Only P1 slides near 660. P2 slides near 140.
+            const myBaseY = (this.myIndex === 1) ? 140 : 660;
+            if (Math.abs(pos.y - myBaseY) < 40) {
                 this.striker.x = Math.max(100, Math.min(700, pos.x));
             }
         }
@@ -155,28 +138,37 @@ class CarromClient {
         if (this.striker.isDragging) {
             this.striker.isDragging = false;
 
-            // Calculate Vector
             const dx = this.dragStart.x - this.dragCurrent.x;
             const dy = this.dragStart.y - this.dragCurrent.y;
-
             const dist = Math.hypot(dx, dy);
+
             if (dist > 10) {
                 const maxPower = 40;
                 const power = Math.min(dist * 0.15, maxPower);
                 const angle = Math.atan2(dy, dx);
 
+                // Track coins before shot for rule logic
+                this.coinsBeforeTurn = this.coins.filter(c => c.active && c.color === (this.myIndex === 0 ? 'white' : 'black')).length;
+
+                // Apply locally
                 this.striker.vx = Math.cos(angle) * power;
                 this.striker.vy = Math.sin(angle) * power;
 
-                if (window.playSound) window.playSound('strike');
                 this.animating = true;
+                if (window.playSound) window.playSound('strike');
+
+                // Emit to Server
+                this.socket.emit('gameAction', {
+                    roomId: this.roomId,
+                    action: 'shoot',
+                    data: { angle, power, positionX: this.striker.x }
+                });
             }
         }
     }
 
     gameLoop(timestamp) {
         if (!this.lastTime) this.lastTime = timestamp;
-        // Cap dt to prevent huge jumps (e.g. tab switching)
         const dt = Math.min((timestamp - this.lastTime) / 16, 2.0);
         this.lastTime = timestamp;
 
@@ -193,16 +185,13 @@ class CarromClient {
         const entities = [this.striker, ...this.coins.filter(c => c.active)];
 
         entities.forEach(b => {
+            // Movement & Friction
             if (Math.abs(b.vx) > 0.1 || Math.abs(b.vy) > 0.1) {
                 moving = true;
-
-                // Movement
                 b.x += b.vx * dt;
                 b.y += b.vy * dt;
-
-                // Friction
                 b.vx *= this.FRICTION;
-                b.vy *= this.FRICTION; // Simple friction
+                b.vy *= this.FRICTION;
 
                 if (Math.abs(b.vx) < 0.1) b.vx = 0;
                 if (Math.abs(b.vy) < 0.1) b.vy = 0;
@@ -213,15 +202,13 @@ class CarromClient {
                 if (b.y - b.radius < 50) { b.y = 50 + b.radius; b.vy *= -this.WALL_BOUNCE; }
                 if (b.y + b.radius > 750) { b.y = 750 - b.radius; b.vy *= -this.WALL_BOUNCE; }
 
-                // Pocket detection
+                // Pockets
                 const pockets = [[50, 50], [750, 50], [50, 750], [750, 750]];
                 pockets.forEach(p => {
                     if (Math.hypot(b.x - p[0], b.y - p[1]) < this.POCKET_RADIUS) {
-                        // Pocketed!
                         if (b === this.striker) {
-                            // Foul! Reset striker
-                            this.striker.vx = 0; this.striker.vy = 0;
-                            this.resetStriker();
+                            b.vx = 0; b.vy = 0;
+                            b.active = false; // Foul!
                         } else {
                             b.active = false;
                             if (window.playSound) window.playSound('pocket');
@@ -231,52 +218,42 @@ class CarromClient {
             }
         });
 
-        // Circle-Circle Collision
+        // Collisions (Striker-Coin, Coin-Coin)
         for (let i = 0; i < entities.length; i++) {
             for (let j = i + 1; j < entities.length; j++) {
                 const b1 = entities[i];
                 const b2 = entities[j];
-
                 const dx = b2.x - b1.x;
                 const dy = b2.y - b1.y;
                 const dist = Math.hypot(dx, dy);
                 const minDist = b1.radius + b2.radius;
 
                 if (dist < minDist) {
-                    // Collision response
-                    if (window.playSound) window.playSound('strike'); // Soft tick?
+                    if (window.playSound) window.playSound('strike');
 
                     const angle = Math.atan2(dy, dx);
                     const sin = Math.sin(angle);
                     const cos = Math.cos(angle);
 
-                    // Rotate velocity
                     const vx1 = b1.vx * cos + b1.vy * sin;
                     const vy1 = b1.vy * cos - b1.vx * sin;
                     const vx2 = b2.vx * cos + b2.vy * sin;
                     const vy2 = b2.vy * cos - b2.vx * sin;
 
-                    // Elastic collision with Mass
-                    // v1' = ((m1 - m2) * v1 + 2 * m2 * v2) / (m1 + m2)
                     const m1 = b1.mass || 1;
                     const m2 = b2.mass || 1;
 
                     const vx1Final = ((m1 - m2) * vx1 + 2 * m2 * vx2) / (m1 + m2);
                     const vx2Final = ((m2 - m1) * vx2 + 2 * m1 * vx1) / (m1 + m2);
 
-                    // Update velocities
-                    // Rotate back: x = vx * cos - vy * sin, y = vy * cos + vx * sin
                     b1.vx = vx1Final * cos - vy1 * sin;
                     b1.vy = vy1 * cos + vx1Final * sin;
                     b2.vx = vx2Final * cos - vy2 * sin;
                     b2.vy = vy2 * cos + vx2Final * sin;
 
-                    // Separation to prevent sticking
-                    const overlap = (minDist - dist) + 1; // +1 extra push
+                    const overlap = (minDist - dist) + 1;
                     const ax = overlap * Math.cos(angle);
                     const ay = overlap * Math.sin(angle);
-
-                    // Distribute separation based on inverse mass (heavier moves less)
                     const mTotal = m1 + m2;
                     b1.x -= ax * (m2 / mTotal);
                     b1.y -= ay * (m2 / mTotal);
@@ -286,127 +263,148 @@ class CarromClient {
             }
         }
 
-        if (!moving && this.striker.vx === 0 && this.striker.vy === 0) {
+        if (!moving && this.animating) {
+            // Turn Ended
             this.animating = false;
-            // Next turn logic could go here
-            this.resetStriker();
+
+            if (this.isMyTurn) {
+                // Rule Logic
+                const myColor = (this.myIndex === 0) ? 'white' : 'black';
+                const coinsAfter = this.coins.filter(c => c.active && c.color === myColor).length;
+                let switchTurn = true;
+
+                if (coinsAfter < this.coinsBeforeTurn) {
+                    switchTurn = false; // Pocketed own coin, go again
+                }
+
+                // Simple foul check: striker pocketed?
+                if (!this.striker.active) switchTurn = true;
+
+                // Reset Striker Logic locally
+                this.resetStriker();
+
+                this.socket.emit('gameAction', {
+                    roomId: this.roomId,
+                    action: 'endTurn',
+                    data: {
+                        coins: this.coins,
+                        striker: this.striker,
+                        switchTurn: switchTurn
+                    }
+                });
+            } else {
+                // Opponent turn ended (simulated locally)
+                // We wait for server authoritative 'stateUpdate' to snap positions
+                this.resetStriker();
+            }
         }
+    }
+
+    resetStriker() {
+        this.striker.x = 400;
+        this.striker.vx = 0; this.striker.vy = 0;
+        this.striker.active = true;
+
+        // Reset to baseline based on whose turn it IS (or will be)
+        // If it's my turn next, set to my baseline.
+        // If it's opponent turn, set to theirs.
+        // Actually, 'endTurn' changes `this.turnIndex` via server update.
+        // `updateState` calls `resetStriker` again.
+        // Here we just set a default safe spot?
+        // Let's rely on `stateUpdate` to set correct baseline.
     }
 
     render() {
         if (!this.ctx) return;
         const ctx = this.ctx;
-
-        // Clear
         ctx.clearRect(0, 0, 800, 800);
 
-        // Draw Woods
-        ctx.fillStyle = '#8B4513';
-        ctx.fillRect(0, 0, 800, 800);
-        ctx.fillStyle = '#F5DEB3'; // Playing area
-        ctx.fillRect(50, 50, 700, 700);
+        ctx.fillStyle = '#8B4513'; ctx.fillRect(0, 0, 800, 800);
+        ctx.fillStyle = '#F5DEB3'; ctx.fillRect(50, 50, 700, 700);
 
-        // Board Design (Center Design)
-        ctx.beginPath();
-        ctx.strokeStyle = '#D2691E';
-        ctx.lineWidth = 2;
-        ctx.arc(400, 400, 100, 0, Math.PI * 2);
-        ctx.stroke();
-
-        ctx.strokeStyle = '#333';
-        ctx.lineWidth = 1;
-        // Baseline lines
-        const drawBaseline = (y) => {
-            ctx.beginPath();
-            ctx.moveTo(100, y);
-            ctx.lineTo(700, y);
-            ctx.stroke();
-            // End circles needed?
-        };
-        drawBaseline(140);
-        drawBaseline(660);
-
-        // Pockets
         const pockets = [[50, 50], [750, 50], [50, 750], [750, 750]];
         pockets.forEach(p => {
-            ctx.beginPath();
-            ctx.arc(p[0], p[1], 35, 0, Math.PI * 2);
-            ctx.fillStyle = '#1a1a1a';
-            ctx.fill();
-            ctx.strokeStyle = '#5c4033';
-            ctx.lineWidth = 5;
-            ctx.stroke();
+            ctx.beginPath(); ctx.arc(p[0], p[1], 35, 0, Math.PI * 2);
+            ctx.fillStyle = '#1a1a1a'; ctx.fill();
         });
 
-        // Shadows
-        ctx.shadowColor = 'rgba(0,0,0,0.3)';
-        ctx.shadowBlur = 10;
-        ctx.shadowOffsetX = 3;
-        ctx.shadowOffsetY = 3;
-
-        // Render Coins
         this.coins.forEach(c => {
             if (c.active) this.drawPiece(c.x, c.y, c.radius, c.color);
         });
 
-        // Render Striker
         if (this.striker.active) {
             this.drawPiece(this.striker.x, this.striker.y, this.striker.radius, this.striker.color);
-
-            // Aim Line
             if (this.striker.isDragging) {
-                ctx.shadowBlur = 0;
                 ctx.beginPath();
                 ctx.moveTo(this.striker.x, this.striker.y);
                 const dx = this.dragStart.x - this.dragCurrent.x;
                 const dy = this.dragStart.y - this.dragCurrent.y;
-                const dist = Math.hypot(dx, dy);
-                const maxLen = 200;
-                const scale = Math.min(dist, maxLen) / dist; // Limit visual length
-
-                ctx.lineTo(this.striker.x + dx * scale, this.striker.y + dy * scale);
-                ctx.strokeStyle = `rgba(255, 0, 0, ${Math.min(dist / 100, 1)})`;
-                ctx.lineWidth = 4;
-                ctx.setLineDash([5, 5]);
-                ctx.stroke();
-                ctx.setLineDash([]);
+                const scale = Math.min(Math.hypot(dx, dy), 200);
+                const angle = Math.atan2(dy, dx);
+                ctx.lineTo(this.striker.x + Math.cos(angle) * scale, this.striker.y + Math.sin(angle) * scale);
+                ctx.strokeStyle = 'red'; ctx.lineWidth = 3; ctx.stroke();
             }
         }
-
-        ctx.shadowBlur = 0; // Reset
     }
 
     drawPiece(x, y, r, color) {
         const ctx = this.ctx;
         ctx.beginPath();
         ctx.arc(x, y, r, 0, Math.PI * 2);
-
-        // Gradient fill
         const grad = ctx.createRadialGradient(x - r / 3, y - r / 3, r / 10, x, y, r);
-        if (color === 'white') {
-            grad.addColorStop(0, '#fff');
-            grad.addColorStop(1, '#e0e0e0');
-        } else if (color === 'black') {
-            grad.addColorStop(0, '#555');
-            grad.addColorStop(1, '#222');
-        } else if (color === 'red') {
-            grad.addColorStop(0, '#ff6b6b');
-            grad.addColorStop(1, '#c0392b');
-        } else {
-            // Gold/Striker
-            grad.addColorStop(0, '#fffacd');
-            grad.addColorStop(1, '#ffd700');
-        }
-
-        ctx.fillStyle = grad;
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(0,0,0,0.2)';
-        ctx.lineWidth = 1;
+        if (color === 'white') { grad.addColorStop(0, '#fff'); grad.addColorStop(1, '#ddd'); }
+        else if (color === 'black') { grad.addColorStop(0, '#555'); grad.addColorStop(1, '#222'); }
+        else if (color === 'red') { grad.addColorStop(0, '#ff6b6b'); grad.addColorStop(1, '#c0392b'); }
+        else { grad.addColorStop(0, '#fffacd'); grad.addColorStop(1, '#ffd700'); }
+        ctx.fillStyle = grad; ctx.fill();
         ctx.stroke();
     }
 
     updateState(data) {
-        // Optional: socket sync if needed later
+        if (data.coins) this.coins = data.coins;
+        if (data.players) this.myIndex = data.players.indexOf(this.socket.id);
+        if (data.turn !== undefined) this.turnIndex = data.turn;
+
+        const turnIndicator = document.getElementById('turn-indicator');
+
+        if (data.event === 'shoot') {
+            if (data.pIndex !== this.myIndex) {
+                const startY = (data.pIndex === 0) ? 660 : 140;
+                // If 4 player, logic needed. For now 2.
+                this.striker.x = data.positionX;
+                this.striker.y = startY;
+                this.striker.vx = Math.cos(data.angle) * data.power;
+                this.striker.vy = Math.sin(data.angle) * data.power;
+                this.animating = true;
+            }
+        }
+
+        if (data.event === 'stateUpdate') {
+            this.coins = data.coins;
+            this.striker = data.striker;
+            this.animating = false;
+        }
+
+        this.isMyTurn = (this.turnIndex === this.myIndex);
+        if (turnIndicator) turnIndicator.innerText = this.isMyTurn ? "Your Turn" : "Opponent's Turn";
+
+        if (!this.animating) {
+            // Reset striker position logic based on turn
+            this.striker.vx = 0; this.striker.vy = 0;
+            this.striker.active = true;
+
+            // If it's my turn, place at my baseline
+            if (this.isMyTurn) {
+                this.striker.y = (this.myIndex === 1) ? 140 : 660;
+                this.striker.x = 400; // Center
+            } else {
+                // Hide off board or place at opponent baseline?
+                const opponentIndex = (this.turnIndex);
+                // Just keep it visible at opponent baseline
+                this.striker.y = (opponentIndex === 1) ? 140 : 660;
+                this.striker.x = 400;
+            }
+        }
     }
 }
 
