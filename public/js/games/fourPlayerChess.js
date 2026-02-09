@@ -33,36 +33,37 @@ class FourPlayerChessClient {
 
                 // Handle invalid corners
                 if (this.isInvalidSquare(r, c)) {
-                    square.classList.add('four-square'); // Used for invalid transparency
+                    square.classList.add('four-square');
                     square.classList.add('invalid');
                     square.style.visibility = 'hidden';
                 } else {
                     // Color pattern
                     if ((r + c) % 2 === 0) square.classList.add('light');
                     else square.classList.add('dark');
-                }
 
-                const piece = boardData[r][c];
-                if (piece) {
-                    const img = document.createElement('img');
+                    const piece = boardData[r][c];
+                    if (piece) {
+                        const img = document.createElement('img');
 
-                    // Logic: Map 'red' to 'w' assets with filter, 'blue' to 'b' assets with filter
-                    // 'white' -> 'w', 'black' -> 'b'
-                    let prefix = 'w';
-                    if (piece.color === 'black' || piece.color === 'blue') prefix = 'b';
+                        let prefix = 'w';
+                        if (piece.color === 'black' || piece.color === 'blue') prefix = 'b';
 
-                    img.src = `assets/pieces/${prefix}${piece.type.toLowerCase()}.svg`;
+                        img.src = `assets/pieces/${prefix}${piece.type.toLowerCase()}.svg`;
 
-                    // Apply filters for Red and Blue
-                    if (piece.color === 'red') {
-                        img.style.filter = 'sepia(1) saturate(5) hue-rotate(-50deg)'; // Red-ish tint
-                    } else if (piece.color === 'blue') {
-                        img.style.filter = 'sepia(1) saturate(5) hue-rotate(180deg)'; // Blue-ish tint
+                        // Apply filters for Red and Blue
+                        if (piece.color === 'red') {
+                            img.style.filter = 'sepia(1) saturate(5) hue-rotate(-50deg) drop-shadow(2px 4px 6px rgba(0,0,0,0.4))';
+                        } else if (piece.color === 'blue') {
+                            img.style.filter = 'sepia(1) saturate(5) hue-rotate(180deg) drop-shadow(2px 4px 6px rgba(0,0,0,0.4))';
+                        } else {
+                            // Standard shadow for white/black
+                            img.style.filter = 'drop-shadow(2px 4px 6px rgba(0,0,0,0.4))';
+                        }
+
+                        img.classList.add('piece');
+                        img.draggable = true;
+                        square.appendChild(img);
                     }
-
-                    img.classList.add('piece');
-                    img.draggable = true;
-                    square.appendChild(img);
                 }
                 this.chessBoard.appendChild(square);
             }

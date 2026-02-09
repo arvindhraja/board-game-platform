@@ -66,14 +66,32 @@ class FourPlayerChess {
 
         if (action === 'move') {
             const { from, to } = data;
-            const playerColor = this.getPlayerColor(playerId);
 
-            if (playerColor !== this.turnOrder[this.currentTurnIndex]) {
-                throw new Error('Not your turn');
+            // Allow single player testing
+            const isTesting = (Object.values(this.players).filter(p => p !== null).length <= 1);
+
+            if (!isTesting) {
+                const playerColor = this.getPlayerColor(playerId);
+                if (playerColor !== this.turnOrder[this.currentTurnIndex]) {
+                    throw new Error('Not your turn');
+                }
+            } else {
+                // In testing, assume player can move any piece
+                // But we still need a color to validate correct piece movement
+                // Let's just use the piece's color from the board
+                const piece = this.board[from.r][from.c];
+                if (piece) {
+                    // Pass
+                }
             }
 
-            if (this.isValidMove(from, to, playerColor)) {
-                this.executeMove(from, to, playerColor);
+            // We need to pass the color to isValidMove. 
+            // If testing, use piece color. If not, use player color (which must match piece color in isValidMove)
+            const piece = this.board[from.r][from.c];
+            const colorToValidate = isTesting ? (piece ? piece.color : 'white') : this.getPlayerColor(playerId);
+
+            if (this.isValidMove(from, to, colorToValidate)) {
+                this.executeMove(from, to, colorToValidate);
                 this.nextTurn();
 
                 return {
