@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,14 +8,18 @@
     <link rel="stylesheet" href="css/styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
     <script src="/socket.io/socket.io.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script> 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
     <!-- Using chess.js on client for move validation visual feedback -->
 </head>
+
 <body class="dark-theme">
     <div id="app">
         <header>
             <h1>Board Game Arena</h1>
-            <button id="theme-toggle">🌙/☀️</button>
+            <div id="controls">
+                <button id="sound-toggle">🔊</button>
+                <button id="theme-toggle">🌙/☀️</button>
+            </div>
         </header>
 
         <main>
@@ -26,6 +31,11 @@
                         <option value="chess">Standard Chess (2 Players)</option>
                         <option value="four-chess">Four-Player Chess (4 Players)</option>
                         <option value="carrom">Carrom (2/4 Players)</option>
+                    </select>
+                    <select id="time-control">
+                        <option value="0">No Time Limit</option>
+                        <option value="5">5 Minutes (Blitz)</option>
+                        <option value="10">10 Minutes (Rapid)</option>
                     </select>
                     <button id="create-btn">Create Room</button>
                 </div>
@@ -77,4 +87,5 @@
     <script src="js/games/fourPlayerChess.js"></script>
     <script src="js/games/carrom.js"></script>
 </body>
+
 </html>

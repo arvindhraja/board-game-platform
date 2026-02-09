@@ -3,27 +3,48 @@ const FourPlayerChess = require('./games/fourPlayerChess');
 const Carrom = require('./games/carrom');
 
 class GameManager {
-    constructor(io, roomId, gameType) {
+    constructor(io, roomId, gameType, timeControl) {
         this.io = io;
         this.roomId = roomId;
         this.gameType = gameType;
+        this.timeControl = timeControl; // in minutes
         this.game = null;
         this.players = [];
+        this.timerInterval = null;
 
         // Initialize game instance based on type
         switch (gameType) {
             case 'chess':
-                this.game = new Chess();
+                this.game = new Chess(timeControl);
                 break;
             case 'four-chess':
-                this.game = new FourPlayerChess();
+                this.game = new FourPlayerChess(timeControl);
                 break;
             case 'carrom':
-                this.game = new Carrom();
+                this.game = new Carrom(); // Timers less critical, maybe turn limit?
                 break;
             default:
                 console.error('Unknown game type:', gameType);
         }
+
+        if (this.timeControl > 0 && gameType !== 'carrom') {
+            this.startTimerLoop();
+        }
+    }
+
+    startTimerLoop() {
+        if (this.timerInterval) clearInterval(this.timerInterval);
+        this.timerInterval = setInterval(() => {
+            if (this.game && this.game.onTimerTick) {
+                const result = this.game.onTimerTick();
+                if (result) {
+                    this.io.to(this.roomId).emit('gameUpdate', result);
+                    if (result.gameOver) {
+                        clearInterval(this.timerInterval);
+                    }
+                }
+            }
+        }, 1000);
     }
 
     handleAction(playerId, action, data) {

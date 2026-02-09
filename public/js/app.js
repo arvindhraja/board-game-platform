@@ -12,9 +12,25 @@ const chatMsgs = document.getElementById('chat-messages');
 const msgInput = document.getElementById('msg-input');
 const sendMsgBtn = document.getElementById('send-msg-btn');
 const themeToggle = document.getElementById('theme-toggle');
+const soundToggle = document.getElementById('sound-toggle');
 
 // Game Instances
 let currentGame = null;
+
+// Sound System
+window.soundEnabled = true;
+window.playSound = (soundName) => {
+    if (!window.soundEnabled) return;
+    const audio = new Audio(`assets/sounds/${soundName}.mp3`);
+    audio.play().catch(e => console.log('Audio play failed', e)); // Catch interaction errors
+};
+
+if (soundToggle) {
+    soundToggle.addEventListener('click', () => {
+        window.soundEnabled = !window.soundEnabled;
+        soundToggle.innerText = window.soundEnabled ? '🔊' : '🔇';
+    });
+}
 
 // Helper to show/hide sections
 function showSection(sectionId) {
@@ -28,7 +44,6 @@ themeToggle.addEventListener('click', () => {
     localStorage.setItem('theme', document.body.classList.contains('light-theme') ? 'light' : 'dark');
 });
 
-// Check local storage for theme
 if (localStorage.getItem('theme') === 'light') {
     document.body.classList.add('light-theme');
 }
@@ -36,7 +51,9 @@ if (localStorage.getItem('theme') === 'light') {
 // Lobby Actions
 createBtn.addEventListener('click', () => {
     const gameType = document.getElementById('game-type').value;
-    socket.emit('createRoom', { gameType });
+    const timeControl = document.getElementById('time-control').value;
+    const timeVal = parseInt(timeControl);
+    socket.emit('createRoom', { gameType, timeControl: isNaN(timeVal) ? 0 : timeVal });
 });
 
 joinBtn.addEventListener('click', () => {
@@ -49,16 +66,16 @@ joinBtn.addEventListener('click', () => {
 });
 
 leaveBtn.addEventListener('click', () => {
-    location.reload(); // Simple way to leave and reset state
+    location.reload();
 });
 
 // Socket Events
-socket.on('roomCreated', ({ roomId, gameType }) => {
-    enterRoom(roomId, gameType);
+socket.on('roomCreated', ({ roomId, gameType, timeControl }) => {
+    enterRoom(roomId, gameType, timeControl);
 });
 
-socket.on('roomJoined', ({ roomId, gameType }) => {
-    enterRoom(roomId, gameType);
+socket.on('roomJoined', ({ roomId, gameType, timeControl }) => {
+    enterRoom(roomId, gameType, timeControl);
 });
 
 socket.on('playerJoined', ({ playerId, count }) => {
@@ -126,15 +143,19 @@ function updatePlayerList(count) {
     }
 }
 
-function enterRoom(roomId, gameType) {
+function enterRoom(roomId, gameType, timeControl) {
     showSection('game-room');
-    roomIdDisplay.innerText = `Room: ${roomId} (${gameType})`;
+    const timeText = timeControl > 0 ? `${timeControl}m` : '∞';
+    // Clean timeControl value
+    const tc = timeControl || 0;
+
+    roomIdDisplay.innerText = `Room: ${roomId} (${gameType}) | Time: ${timeText}`;
 
     // Instantiate Game Client
     if (gameType === 'chess') {
-        currentGame = new StandardChessClient(socket, roomId);
+        currentGame = new StandardChessClient(socket, roomId, tc);
     } else if (gameType === 'four-chess') {
-        currentGame = new FourPlayerChessClient(socket, roomId);
+        currentGame = new FourPlayerChessClient(socket, roomId, tc);
     } else if (gameType === 'carrom') {
         currentGame = new CarromClient(socket, roomId);
     }

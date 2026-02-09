@@ -8,22 +8,26 @@ function initializeLobby(io) {
         console.log(`User connected: ${socket.id}`);
 
         // Create a new room
-        socket.on('createRoom', ({ gameType }) => {
+        // Create a new room
+        socket.on('createRoom', ({ gameType, timeControl }) => {
             const roomId = uuidv4().slice(0, 8); // simple short code
             rooms[roomId] = {
                 id: roomId,
                 gameType: gameType,
+                timeControl: timeControl || 0,
                 players: [],
                 status: 'waiting', // waiting, playing, ended
-                gameManager: new GameManager(roomId, gameType, io),
+                gameManager: new GameManager(io, roomId, gameType, timeControl),
             };
 
             socket.join(roomId);
             rooms[roomId].players.push(socket.id);
+            // Auto add player to game manager
+            rooms[roomId].gameManager.addPlayer(socket.id);
 
-            console.log(`Room created: ${roomId} with game type ${gameType}`);
+            console.log(`Room created: ${roomId} with game type ${gameType} and time ${timeControl}`);
 
-            socket.emit('roomCreated', { roomId, gameType });
+            socket.emit('roomCreated', { roomId, gameType, timeControl });
             io.to(roomId).emit('playerJoined', { playerId: socket.id, count: rooms[roomId].players.length });
         });
 
@@ -41,7 +45,7 @@ function initializeLobby(io) {
 
                 console.log(`User ${socket.id} joined room ${roomId}`);
 
-                socket.emit('roomJoined', { roomId, gameType: room.gameType });
+                socket.emit('roomJoined', { roomId, gameType: room.gameType, timeControl: room.timeControl });
                 io.to(roomId).emit('playerJoined', { playerId: socket.id, count: room.players.length });
 
                 // Check if game can start
