@@ -23,8 +23,34 @@
         </header>
 
         <main>
+            <!-- Auth Section -->
+            <section id="auth-section" class="active">
+                <div class="card">
+                    <h2>Welcome to Board Game Arena</h2>
+                    <div id="auth-forms">
+                        <div id="login-form">
+                            <h3>Login</h3>
+                            <input type="text" id="login-username" placeholder="Username">
+                            <input type="password" id="login-password" placeholder="Password">
+                            <button id="login-btn">Login</button>
+                            <p>Don't have an account? <a href="#" id="show-signup">Sign Up</a></p>
+                        </div>
+                        <div id="signup-form" class="hidden">
+                            <h3>Sign Up</h3>
+                            <input type="text" id="signup-username" placeholder="Username">
+                            <input type="email" id="signup-email" placeholder="Email">
+                            <input type="password" id="signup-password" placeholder="Password">
+                            <button id="signup-btn">Sign Up</button>
+                            <p>Already have an account? <a href="#" id="show-login">Login</a></p>
+                        </div>
+                        <div class="divider">OR</div>
+                        <button id="guest-btn" style="background: #555;">Play as Guest</button>
+                    </div>
+                </div>
+            </section>
+
             <!-- Lobby Section -->
-            <section id="lobby" class="active">
+            <section id="lobby" class="hidden">
                 <div class="card">
                     <h2>Create a Room</h2>
                     <select id="game-type">
@@ -37,6 +63,10 @@
                         <option value="5">5 Minutes (Blitz)</option>
                         <option value="10">10 Minutes (Rapid)</option>
                     </select>
+                    <div style="margin: 10px 0;">
+                        <input type="checkbox" id="ai-mode">
+                        <label for="ai-mode">Play vs AI Bots</label>
+                    </div>
                     <button id="create-btn">Create Room</button>
                 </div>
 
@@ -68,6 +98,13 @@
                         <div class="players-list">
                             <h3>Players</h3>
                             <ul id="players-ul"></ul>
+                        </div>
+                        <div class="history-box" id="history-panel"
+                            style="background: #2a2a2a; border-radius: 8px; margin-bottom: 10px; padding: 10px; max-height: 200px; overflow-y: auto;">
+                            <h3 style="margin-top: 0; border-bottom: 1px solid #444; padding-bottom: 5px;">Moves</h3>
+                            <div id="moves-list" class="moves-container"
+                                style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; font-family: monospace; font-size: 14px;">
+                            </div>
                         </div>
                         <div class="chat-box">
                             <div id="chat-messages"></div>

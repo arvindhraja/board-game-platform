@@ -12,25 +12,32 @@ class CarromGame {
     setupCoins() {
         const cx = 400, cy = 400;
         const coins = [];
-        coins.push({ id: 'queen', x: cx, y: cy, color: 'red', vx: 0, vy: 0, active: true });
+        // Queen
+        coins.push({ id: 'queen', x: cx, y: cy, radius: 14, color: 'red', vx: 0, vy: 0, active: true, mass: 1 });
+
+        // Inner Circle (6 coins)
         for (let i = 0; i < 6; i++) {
             const angle = (i * 60) * Math.PI / 180;
             coins.push({
                 id: `inner-${i}`,
-                x: cx + Math.cos(angle) * 26,
-                y: cy + Math.sin(angle) * 26,
+                x: cx + Math.cos(angle) * 29,
+                y: cy + Math.sin(angle) * 29,
+                radius: 14,
                 color: i % 2 === 0 ? 'white' : 'black',
-                vx: 0, vy: 0, active: true
+                vx: 0, vy: 0, active: true, mass: 1
             });
         }
+
+        // Outer Circle (12 coins - adjacent packing)
         for (let i = 0; i < 12; i++) {
             const angle = (i * 30) * Math.PI / 180;
             coins.push({
                 id: `outer-${i}`,
-                x: cx + Math.cos(angle) * 50,
-                y: cy + Math.sin(angle) * 50,
-                color: 'white',
-                vx: 0, vy: 0, active: true
+                x: cx + Math.cos(angle) * 54,
+                y: cy + Math.sin(angle) * 54,
+                radius: 14,
+                color: i % 2 === 0 ? 'white' : 'black', // 6W + 6B
+                vx: 0, vy: 0, active: true, mass: 1
             });
         }
         return coins;

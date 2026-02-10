@@ -1,11 +1,73 @@
-const socket = io();
+const socket = io({
+    auth: {
+        token: localStorage.getItem('token')
+    }
+});
 
 // UI Elements
+const authSection = document.getElementById('auth-section');
 const lobbySection = document.getElementById('lobby');
 const gameRoomSection = document.getElementById('game-room');
+
+// Auth UI
+const loginForm = document.getElementById('login-form');
+const signupForm = document.getElementById('signup-form');
 const createBtn = document.getElementById('create-btn');
 const joinBtn = document.getElementById('join-btn');
 const leaveBtn = document.getElementById('leave-btn');
+// ... other existing
+
+// Auth Event Listeners
+document.getElementById('guest-btn').addEventListener('click', () => showSection('lobby'));
+document.getElementById('show-signup').addEventListener('click', (e) => { e.preventDefault(); loginForm.classList.add('hidden'); signupForm.classList.remove('hidden'); });
+document.getElementById('show-login').addEventListener('click', (e) => { e.preventDefault(); signupForm.classList.add('hidden'); loginForm.classList.remove('hidden'); });
+
+document.getElementById('login-btn').addEventListener('click', async () => {
+    const email = document.getElementById('login-username').value; // Using this input as email
+    const password = document.getElementById('login-password').value;
+    try {
+        const res = await fetch('/api/auth/login', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        if (data.token) {
+            localStorage.setItem('token', data.token);
+            socket.auth.token = data.token;
+            socket.disconnect().connect();
+            showSection('lobby');
+        } else {
+            alert(data.message || 'Login failed');
+        }
+    } catch (e) { console.error(e); alert('Login Error'); }
+});
+
+document.getElementById('signup-btn').addEventListener('click', async () => {
+    const username = document.getElementById('signup-username').value;
+    const email = document.getElementById('signup-email').value;
+    const password = document.getElementById('signup-password').value;
+    try {
+        const res = await fetch('/api/auth/signup', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, email, password })
+        });
+        const data = await res.json();
+        if (data.token) {
+            localStorage.setItem('token', data.token);
+            socket.auth.token = data.token;
+            socket.disconnect().connect();
+            showSection('lobby');
+        } else {
+            alert(data.message || 'Signup failed');
+        }
+    } catch (e) { console.error(e); alert('Signup Error'); }
+});
+
+// Check Session
+if (localStorage.getItem('token')) {
+    showSection('lobby');
+}
+
 const roomIdDisplay = document.getElementById('room-id-display');
 const playersList = document.getElementById('players-ul');
 const chatMsgs = document.getElementById('chat-messages');
@@ -52,8 +114,14 @@ if (localStorage.getItem('theme') === 'light') {
 createBtn.addEventListener('click', () => {
     const gameType = document.getElementById('game-type').value;
     const timeControl = document.getElementById('time-control').value;
+    const isAi = document.getElementById('ai-mode').checked;
     const timeVal = parseInt(timeControl);
-    socket.emit('createRoom', { gameType, timeControl: isNaN(timeVal) ? 0 : timeVal });
+
+    socket.emit('createRoom', {
+        gameType,
+        timeControl: isNaN(timeVal) ? 0 : timeVal,
+        mode: isAi ? 'ai' : 'human'
+    });
 });
 
 joinBtn.addEventListener('click', () => {

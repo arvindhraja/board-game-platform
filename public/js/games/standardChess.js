@@ -216,20 +216,81 @@ class StandardChessClient {
         if (data.timeLeft) this.updateTimers(data.timeLeft);
 
         this.renderPieces();
+        this.renderHistory();
         this.updateStatus(data);
+    }
+
+    renderHistory() {
+        const historyEl = document.getElementById('moves-list');
+        if (!historyEl) return;
+        historyEl.innerHTML = '';
+
+        const history = this.chess.history({ verbose: true });
+        for (let i = 0; i < history.length; i += 2) {
+            const moveNumber = Math.floor(i / 2) + 1;
+            const wMove = history[i];
+            const bMove = history[i + 1];
+
+            const numDiv = document.createElement('div');
+            numDiv.innerText = moveNumber + '.';
+            numDiv.style.color = '#888';
+
+            const wDiv = document.createElement('div');
+            wDiv.innerText = wMove.san;
+            wDiv.style.color = '#fff';
+
+            const bDiv = document.createElement('div');
+            if (bMove) {
+                bDiv.innerText = bMove.san;
+                bDiv.style.color = '#fff';
+            }
+
+            historyEl.appendChild(numDiv);
+            historyEl.appendChild(wDiv);
+            historyEl.appendChild(bDiv || document.createElement('div'));
+        }
+
+        const panel = document.getElementById('history-panel');
+        if (panel) panel.scrollTop = panel.scrollHeight;
     }
 
     updateStatus(data) {
         const statusEl = document.getElementById('game-status');
         if (statusEl) {
+            const turnText = this.chess.turn() === 'w' ? "White's Turn" : "Black's Turn";
             if (data.gameOver) {
                 const winner = data.winner === 'w' ? 'White' : (data.winner === 'b' ? 'Black' : 'Draw');
                 statusEl.innerText = data.checkmate ? `Checkmate! ${winner} wins.` : `Game Over (${data.reason || 'Draw'})`;
+
+                // Popup
+                if (!document.getElementById('game-over-modal')) {
+                    const overlay = document.createElement('div');
+                    overlay.id = 'game-over-modal';
+                    overlay.style.cssText = "position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: flex; justify-content: center; align-items: center; z-index: 2000; flex-direction: column; animation: fadeIn 0.5s;";
+                    overlay.innerHTML = `
+                        <h1 style="color: #ffd700; font-size: 3rem; margin-bottom: 10px;">${winner === 'Draw' ? 'Draw!' : winner + ' Wins!'}</h1>
+                        <p style="color: #ddd; font-size: 1.5rem; margin-bottom: 20px;">${data.reason || (data.checkmate ? 'Checkmate' : 'Game Over')}</p>
+                        <button onclick="this.parentElement.remove()" style="padding: 10px 30px; font-size: 1.1rem; cursor: pointer; background: #4caf50; color: #fff; border: none; border-radius: 5px;">Close</button>
+                    `;
+                    document.body.appendChild(overlay);
+                }
             } else {
-                const turnText = this.chess.turn() === 'w' ? "White's Turn" : "Black's Turn";
                 statusEl.innerText = data.check ? `Check! ${turnText}` : turnText;
+                statusEl.style.color = data.check ? '#ff6b6b' : '#aaa';
+
+                if (data.check) {
+                    this.showToast('Check!');
+                }
             }
         }
+    }
+
+    showToast(msg) {
+        const toast = document.createElement('div');
+        toast.innerText = msg;
+        toast.style.cssText = "position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(255,0,0,0.8); color: white; padding: 20px 40px; font-size: 2rem; border-radius: 10px; pointer-events: none; z-index: 1000; animation: fadeOut 2s forwards;";
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 2000);
     }
 
     updateTimers(timeLeft) {

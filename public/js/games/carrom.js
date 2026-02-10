@@ -319,32 +319,99 @@ class CarromClient {
         const ctx = this.ctx;
         ctx.clearRect(0, 0, 800, 800);
 
-        ctx.fillStyle = '#8B4513'; ctx.fillRect(0, 0, 800, 800);
-        ctx.fillStyle = '#F5DEB3'; ctx.fillRect(50, 50, 700, 700);
+        // Board Background
+        ctx.fillStyle = '#5D4037'; ctx.fillRect(0, 0, 800, 800); // Frame
+        ctx.fillStyle = '#FDF5E6'; ctx.fillRect(40, 40, 720, 720); // Play surface
 
-        const pockets = [[50, 50], [750, 50], [50, 750], [750, 750]];
+        // Pockets
+        const pockets = [[50, 50], [750, 50], [50, 750], [750, 750]]; // Use centers
+        ctx.fillStyle = '#111';
         pockets.forEach(p => {
-            ctx.beginPath(); ctx.arc(p[0], p[1], 35, 0, Math.PI * 2);
-            ctx.fillStyle = '#1a1a1a'; ctx.fill();
+            ctx.beginPath(); ctx.arc(p[0], p[1], 35, 0, Math.PI * 2); ctx.fill();
         });
 
+        // Markings
+        this.drawMarkings(ctx);
+
+        // Entities
         this.coins.forEach(c => {
             if (c.active) this.drawPiece(c.x, c.y, c.radius, c.color);
         });
 
         if (this.striker.active) {
             this.drawPiece(this.striker.x, this.striker.y, this.striker.radius, this.striker.color);
+
+            // Drag Line
             if (this.striker.isDragging) {
                 ctx.beginPath();
                 ctx.moveTo(this.striker.x, this.striker.y);
                 const dx = this.dragStart.x - this.dragCurrent.x;
                 const dy = this.dragStart.y - this.dragCurrent.y;
-                const scale = Math.min(Math.hypot(dx, dy), 200);
+                // Cap power visual
+                const dist = Math.hypot(dx, dy);
+                const scale = Math.min(dist, 200);
                 const angle = Math.atan2(dy, dx);
+
                 ctx.lineTo(this.striker.x + Math.cos(angle) * scale, this.striker.y + Math.sin(angle) * scale);
-                ctx.strokeStyle = 'red'; ctx.lineWidth = 3; ctx.stroke();
+                ctx.strokeStyle = 'rgba(255, 0, 0, 0.7)';
+                ctx.lineWidth = 4;
+                ctx.lineCap = 'round';
+                ctx.stroke();
             }
         }
+    }
+
+    drawMarkings(ctx) {
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 1.5;
+
+        // Center Design
+        ctx.beginPath(); ctx.arc(400, 400, 100, 0, Math.PI * 2); ctx.stroke(); // Main Circle
+        ctx.beginPath(); ctx.arc(400, 400, 80, 0, Math.PI * 2); ctx.stroke(); // Inner pattern
+        ctx.fillStyle = '#b22222'; ctx.beginPath(); ctx.arc(400, 400, 15, 0, Math.PI * 2); ctx.fill(); // Queen spot
+
+        // Baselines
+        ctx.lineWidth = 2;
+        // Bottom Player
+        ctx.beginPath(); ctx.moveTo(150, 635); ctx.lineTo(650, 635); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(150, 665); ctx.lineTo(650, 665); ctx.stroke();
+        this.drawBaseCircle(ctx, 150, 650); this.drawBaseCircle(ctx, 650, 650);
+
+        // Top Player
+        ctx.beginPath(); ctx.moveTo(150, 135); ctx.lineTo(650, 135); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(150, 165); ctx.lineTo(650, 165); ctx.stroke();
+        this.drawBaseCircle(ctx, 150, 150); this.drawBaseCircle(ctx, 650, 150);
+
+        // Left Player
+        ctx.beginPath(); ctx.moveTo(135, 150); ctx.lineTo(135, 650); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(165, 150); ctx.lineTo(165, 650); ctx.stroke();
+        this.drawBaseCircle(ctx, 150, 150); this.drawBaseCircle(ctx, 150, 650);
+
+        // Right Player
+        ctx.beginPath(); ctx.moveTo(635, 150); ctx.lineTo(635, 650); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(665, 150); ctx.lineTo(665, 650); ctx.stroke();
+        this.drawBaseCircle(ctx, 650, 150); this.drawBaseCircle(ctx, 650, 650);
+
+        // Foul Lines (Arrows)
+        ctx.lineWidth = 1; ctx.strokeStyle = '#555';
+        const drawFoulLine = (x, y, dx, dy) => {
+            ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + dx, y + dy); ctx.stroke();
+            ctx.beginPath(); ctx.arc(x + dx, y + dy, 15, 0, Math.PI * 2); ctx.stroke();
+        };
+        // TopLeft
+        drawFoulLine(70, 70, 180, 180);
+        // TopRight
+        drawFoulLine(730, 70, -180, 180);
+        // BotLeft
+        drawFoulLine(70, 730, 180, -180);
+        // BotRight
+        drawFoulLine(730, 730, -180, -180);
+    }
+
+    drawBaseCircle(ctx, x, y) {
+        ctx.beginPath(); ctx.arc(x, y, 12, 0, Math.PI * 2);
+        ctx.fillStyle = '#8b0000'; ctx.fill();
+        ctx.strokeStyle = '#000'; ctx.stroke();
     }
 
     drawPiece(x, y, r, color) {

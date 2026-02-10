@@ -8,14 +8,12 @@ class FourPlayerChessClient {
     }
 
     init() {
-        this.boardEl.innerHTML = '<div id="four-chess-board" class="four-chess-board"></div>';
+        this.boardEl.innerHTML = `
+            <div id="game-status" style="text-align: center; font-size: 1.2rem; margin-bottom: 10px; color: #fff;">Waiting...</div>
+            <div id="four-chess-board" class="four-chess-board"></div>
+        `;
         this.chessBoard = document.getElementById('four-chess-board');
-        // Initial render logic... 
-        // We need initial state from server? or assume standard start?
-        // Server sends state on join?
-        // Let's request state or wait for update.
         this.socket.emit('gameAction', { roomId: this.roomId, action: 'getState' });
-
         this.setupEventListeners();
         console.log('Four Player Chess Initialized');
     }
@@ -120,6 +118,54 @@ class FourPlayerChessClient {
             this.boardState = data.board;
             this.renderBoard(data.board);
         }
+
+        if (data.turn) {
+            const statusEl = document.getElementById('game-status');
+            if (statusEl) {
+                statusEl.innerText = `Turn: ${data.turn.toUpperCase()}`;
+                if (data.turn === 'white') statusEl.style.color = '#fff';
+                else if (data.turn === 'red') statusEl.style.color = '#ff6b6b';
+                else if (data.turn === 'black') statusEl.style.color = '#aaa';
+                else if (data.turn === 'blue') statusEl.style.color = '#4dabf7';
+            }
+        }
+
+        if (data.history) this.renderHistory(data.history);
+
+        if (data.gameOver && !this.gameOverShown) {
+            this.gameOverShown = true;
+            const winner = data.winner ? data.winner.toUpperCase() : 'Draw';
+
+            const overlay = document.createElement('div');
+            overlay.style.cssText = "position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: flex; justify-content: center; align-items: center; z-index: 2000; flex-direction: column; animation: fadeIn 0.5s;";
+            overlay.innerHTML = `
+                 <h1 style="color: #ffd700; font-size: 3rem; margin-bottom: 20px;">${winner} Wins!</h1>
+                 <button onclick="this.parentElement.remove()" style="padding: 10px 30px; font-size: 1.2rem; cursor: pointer; background: #4caf50; color: #fff; border: none; border-radius: 5px;">Close</button>
+             `;
+            document.body.appendChild(overlay);
+        }
+    }
+
+    renderHistory(history) {
+        const historyEl = document.getElementById('moves-list');
+        if (!historyEl) return;
+        historyEl.innerHTML = '';
+
+        history.forEach((move, i) => {
+            const div = document.createElement('div');
+            div.innerText = `${i + 1}. ${move.san || 'Move'}`;
+            div.style.marginBottom = '2px';
+
+            if (move.color === 'white') div.style.color = '#fff';
+            else if (move.color === 'red') div.style.color = '#ff6b6b';
+            else if (move.color === 'black') div.style.color = '#aaa';
+            else if (move.color === 'blue') div.style.color = '#4dabf7';
+
+            historyEl.appendChild(div);
+        });
+
+        const panel = document.getElementById('history-panel');
+        if (panel) panel.scrollTop = panel.scrollHeight;
     }
 }
 

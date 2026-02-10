@@ -5,60 +5,80 @@ const rooms = {}; // Map of roomId -> room object
 
 function initializeLobby(io) {
     io.on('connection', (socket) => {
-        console.log(`User connected: ${socket.id}`);
+        const userId = socket.user ? socket.user._id : null;
+        const username = socket.user ? socket.user.username : `Guest-${socket.id.substr(0, 4)}`;
 
-        // Create a new room
-        // Create a new room
-        socket.on('createRoom', ({ gameType, timeControl }) => {
-            const roomId = uuidv4().slice(0, 8); // simple short code
+        console.log(`User connected: ${username} (${socket.id})`);
+
+        socket.on('createRoom', ({ gameType, timeControl, mode }) => {
+            const roomId = uuidv4().slice(0, 8);
+            const gameMode = mode || 'human';
+
+            const gameManager = new GameManager(io, roomId, gameType, timeControl, gameMode);
+
             rooms[roomId] = {
                 id: roomId,
-                gameType: gameType,
-                timeControl: timeControl || 0,
-                players: [],
-                status: 'waiting', // waiting, playing, ended
-                gameManager: new GameManager(io, roomId, gameType, timeControl),
+                gameType,
+                timeControl,
+                gameManager,
+                createdAt: Date.now()
             };
 
             socket.join(roomId);
-            rooms[roomId].players.push(socket.id);
-            // Auto add player to game manager
-            rooms[roomId].gameManager.addPlayer(socket.id);
-
-            console.log(`Room created: ${roomId} with game type ${gameType} and time ${timeControl}`);
+            gameManager.addPlayer(socket.id, userId);
 
             socket.emit('roomCreated', { roomId, gameType, timeControl });
-            io.to(roomId).emit('playerJoined', { playerId: socket.id, count: rooms[roomId].players.length });
+            // Notify self
+            socket.emit('playerJoined', { playerId: socket.id, username, count: 1 });
+
+            console.log(`Room ${roomId} created by ${username}`);
         });
 
-        // Join an existing room
         socket.on('joinRoom', ({ roomId }) => {
             const room = rooms[roomId];
-            if (room) {
-                if (room.status === 'playing' && room.players.length >= room.gameManager.maxPlayers) {
-                    socket.emit('error', { message: 'Room is full or game has started.' });
-                    return;
-                }
-
-                socket.join(roomId);
-                room.players.push(socket.id);
-
-                console.log(`User ${socket.id} joined room ${roomId}`);
-
-                socket.emit('roomJoined', { roomId, gameType: room.gameType, timeControl: room.timeControl });
-                io.to(roomId).emit('playerJoined', { playerId: socket.id, count: room.players.length });
-
-                // Check if game can start
-                if (room.players.length === room.gameManager.maxPlayers) { // simplified check
-                    // Notify players to start game logic
-                    // In a real scenario you might have a "Ready" button
-                }
-            } else {
+            if (!room) {
                 socket.emit('error', { message: 'Room not found.' });
+                return;
             }
+
+            // Check if player is already in?
+            if (room.gameManager.players.includes(socket.id)) {
+                return;
+            }
+
+            // Determine max players based on game type
+            let maxPlayers = 2;
+            if (room.gameType === 'four-chess') maxPlayers = 4;
+
+            const currentCount = room.gameManager.players.length;
+
+            socket.join(roomId);
+
+            if (currentCount < maxPlayers) {
+                // Add as Player
+                room.gameManager.addPlayer(socket.id, userId);
+                io.to(roomId).emit('playerJoined', { playerId: socket.id, username, count: currentCount + 1 });
+                socket.emit('roomJoined', { roomId, gameType: room.gameType, timeControl: room.timeControl, role: 'player' });
+
+                // Check for Game Start condition
+                // Logic usually handled by clients clicking "Start" or auto-start
+                // For now, let's auto-start if full? 
+                // Chess starts when 2 players are there usually?
+                // Or wait for first move?
+                // Current GameManager relies on 'processAction' to start timer/active state.
+            } else {
+                // Add as Spectator
+                socket.emit('roomJoined', { roomId, gameType: room.gameType, timeControl: room.timeControl, role: 'spectator' });
+                // Send current state
+                if (room.gameManager.game) {
+                    const state = room.gameManager.game.getState ? room.gameManager.game.getState() : null;
+                    if (state) socket.emit('gameUpdate', state);
+                }
+            }
+
+            console.log(`${username} joined room ${roomId}`);
         });
 
-        // Game actions
         socket.on('gameAction', ({ roomId, action, data }) => {
             const room = rooms[roomId];
             if (room && room.gameManager) {
@@ -66,26 +86,25 @@ function initializeLobby(io) {
             }
         });
 
-        // Chat message
         socket.on('sendMessage', ({ roomId, message }) => {
-            io.to(roomId).emit('receiveMessage', { sender: socket.id, message });
+            // Broadcast with sender name
+            io.to(roomId).emit('receiveMessage', { sender: username, message });
         });
 
         socket.on('disconnect', () => {
-            console.log(`User disconnected: ${socket.id}`);
-            // find room user was in and remove
+            // Improve Cleanup
+            // If player was in a room, handle it.
+            // Loop is inefficient but simple for now.
             for (const roomId in rooms) {
                 const room = rooms[roomId];
-                const index = room.players.indexOf(socket.id);
-                if (index !== -1) {
-                    room.players.splice(index, 1);
-                    io.to(roomId).emit('playerLeft', { playerId: socket.id, count: room.players.length });
+                if (room.gameManager.players.includes(socket.id)) {
+                    // Start timer for reconnection? 
+                    // For now, just mark as disconnected or end game?
+                    // Let's just notify.
+                    io.to(roomId).emit('playerLeft', { playerId: socket.id, username });
 
-                    if (room.players.length === 0) {
-                        delete rooms[roomId]; // Clean up empty rooms
-                        console.log(`Room ${roomId} deleted.`);
-                    }
-                    break;
+                    // Cleanup empty rooms
+                    // Note: Socket.io leaves rooms automatically on disconnect
                 }
             }
         });

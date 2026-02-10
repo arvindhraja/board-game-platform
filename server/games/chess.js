@@ -12,6 +12,12 @@ class ChessGame {
         this.active = false; // Game starts when 2 players join? Or on first move? usually first move or both ready. Let's say first move starts timer.
     }
 
+    getPlayerColor(playerId) {
+        if (this.players.white === playerId) return 'w';
+        if (this.players.black === playerId) return 'b';
+        return null;
+    }
+
     assignPlayer(playerId, playerIndex) {
         if (!this.players.white) {
             this.players.white = playerId;
@@ -24,6 +30,11 @@ class ChessGame {
         return null; // Spectator
     }
 
+    startTimer() {
+        this.active = true;
+        this.lastMoveTime = Date.now();
+    }
+
     processAction(playerId, action, data) {
         if (action === 'getState') {
             return this.getState();
@@ -31,47 +42,53 @@ class ChessGame {
 
         if (action === 'move') {
             if (this.gameOver) return null;
+            const playerColor = this.getPlayerColor(playerId);
+            const currentTurn = this.chess.turn();
 
-            const { from, to, promotion } = data;
-            const turn = this.chess.turn(); // 'w' or 'b'
-            const playerColor = this.players.white === playerId ? 'w' : (this.players.black === playerId ? 'b' : null);
-
-            if (turn !== playerColor) {
+            if (!playerColor && playerId !== 'AI_BOT') return null;
+            if (playerId !== 'AI_BOT' && playerColor !== currentTurn) {
                 throw new Error('Not your turn');
             }
 
             try {
-                // Timer Logic: Calculate time used
-                if (this.timeControl > 0 && this.active) {
+                if (this.active && this.timeControl > 0) {
                     const now = Date.now();
                     const delta = now - this.lastMoveTime;
-                    this.timeLeft[turn] -= delta;
-                    if (this.timeLeft[turn] < 0) this.timeLeft[turn] = 0;
-                    this.lastMoveTime = now;
+                    this.timeLeft[currentTurn] -= delta;
+                    if (this.timeLeft[currentTurn] < 0) this.timeLeft[currentTurn] = 0;
                 }
 
-                const move = this.chess.move({ from, to, promotion: promotion || 'q' });
+                const move = this.chess.move(data);
                 if (move) {
-                    if (!this.active) {
-                        this.active = true;
-                        this.lastMoveTime = Date.now();
-                    }
+                    this.startTimer();
 
-                    return {
+                    const result = {
                         fen: this.chess.fen(),
                         turn: this.chess.turn(),
                         lastMove: move,
+                        gameOver: this.chess.isGameOver(),
+                        winner: this.chess.isCheckmate() ? currentTurn : (this.chess.isDraw() ? 'Draw' : null),
+                        reason: this.getGameOverReason(),
                         check: this.chess.inCheck(),
                         checkmate: this.chess.isCheckmate(),
-                        draw: this.chess.isDraw(),
-                        gameOver: this.chess.isGameOver(),
                         timeLeft: this.timeLeft
                     };
+                    return result;
                 }
             } catch (e) {
-                throw new Error('Invalid move');
+                console.log("Invalid move attempt:", e.message);
+                return null;
             }
         }
+        return null;
+    }
+
+    getGameOverReason() {
+        if (this.chess.isCheckmate()) return 'Checkmate';
+        if (this.chess.isStalemate()) return 'Stalemate';
+        if (this.chess.isThreefoldRepetition()) return 'Repetition';
+        if (this.chess.isInsufficientMaterial()) return 'Insufficient Material';
+        if (this.chess.isDraw()) return 'Draw';
         return null;
     }
 
@@ -101,6 +118,10 @@ class ChessGame {
         // Basic implementation: Client counts down. Server enforces. 
         // We only return result if Game Over.
         return null;
+    }
+
+    getHistory() {
+        return this.chess.history({ verbose: true });
     }
 
     getState() {
