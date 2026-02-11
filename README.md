@@ -1,14 +1,16 @@
 # Online Board Game Platform
 
-A real-time multiplayer board game platform built with Node.js, Express, and Socket.IO.
-Supports Standard Chess, Four-Player Chess, and Carrom.
+A real-time multiplayer board game platform built with Node.js, Express, Socket.IO, and MongoDB.
+Supports Standard Chess (vs Human or Stockfish AI), Four-Player Chess, and Carrom.
 
 ## Features
 - **Real-time Multiplayer**: Using Socket.IO for low-latency updates.
+- **Authentication**: Secure Signup/Login with JWT and Password Hashing.
+- **Persistent Stats**: User profiles, ELO ratings, and Match History stored in MongoDB.
 - **Multiple Games**:
-  - **Standard Chess**: 2-player classic chess.
-  - **Four-Player Chess**: 4-player variant on a 14x14 board.
-  - **Carrom**: Physics-based striker game.
+  - **Standard Chess**: 2-player classic chess with Stockfish AI (Selectable Difficulty).
+  - **Four-Player Chess**: 4-player variant on a 14x14 board (Supports AI fill).
+  - **Carrom**: Physics-based striker game (Server-Authoritative).
 - **Lobby System**: Create/Join rooms with codes.
 - **Responsive UI**: Dark/Light themes, mobile-friendly.
 
@@ -16,9 +18,11 @@ Supports Standard Chess, Four-Player Chess, and Carrom.
 - Frontend: HTML5, CSS3, JavaScript (Vanilla)
 - Backend: Node.js, Express
 - Real-time: Socket.IO
+- Database: MongoDB
 
 ## Prerequisites
-- Node.js (v14+)
+- Node.js (v18+)
+- MongoDB (Local or Atlas)
 - npm
 
 ## How to Run Locally
@@ -33,20 +37,22 @@ Supports Standard Chess, Four-Player Chess, and Carrom.
    ```bash
    npm install
    ```
+   *Note: This includes `stockfish` engine.*
 
-3. **Start the Server**
+3. **Configure Environment**
+   - Create a `.env` file in the root (see `.env.example`).
+   - Add:
+     ```
+     PORT=5000
+     MONGO_URI=mongodb://127.0.0.1:27017/boardgames
+     JWT_SECRET=your_super_secret_key_123
+     ```
+
+4. **Start the Server**
    ```bash
    npm start
    ```
-   Or for development (auto-restart):
-   ```bash
-   npm run dev 
-   # (Requires nodemon: npm install -D nodemon)
-   ```
-
-4. **Access the App**
-   Open `http://localhost:3000` in your browser.
-   Open multiple tabs/windows to simulate multiplayer.
+   Server runs at `http://localhost:5000`.
 
 ## Deployment on Render (Free Tier)
 
@@ -54,15 +60,7 @@ This platform is ready for deployment on Render.com's free Web Service tier.
 
 1. **Push to GitHub**
    - Create a new repository on GitHub.
-   - Push your code:
-     ```bash
-     git init
-     git add .
-     git commit -m "Initial commit"
-     git branch -M main
-     git remote add origin <your-repo-url>
-     git push -u origin main
-     ```
+   - Push your code.
 
 2. **Create Web Service on Render**
    - Log in to [Render dashboard](https://dashboard.render.com/).
@@ -73,18 +71,21 @@ This platform is ready for deployment on Render.com's free Web Service tier.
      - **Runtime**: Node
      - **Build Command**: `npm install`
      - **Start Command**: `node server/index.js`
-   - Click "Create Web Service".
+   - **Environment Variables**:
+     - `node_env`: `production`
+     - `MONGO_URI`: `mongodb+srv://...` (Your Atlas Connection String)
+     - `JWT_SECRET`: `...` (Random Long String)
 
 3. **Verify**
-   - Render will deploy and provide a URL (e.g., `https://board-game-platform.onrender.com`).
+   - Render will deploy and provide a URL.
    - Open the URL and test creating/joining rooms.
 
 ## Game Rules
 
 ### Standard Chess
 - Normal FIDE rules apply.
-- Drag and drop pieces to move.
-- Turn-based (White moves first).
+- Play vs Human or Stockfish AI.
+- Selectable Difficulty (Easy to Grandmaster).
 
 ### Four-Player Chess
 - 4 Players: White, Red, Black, Blue.
@@ -94,8 +95,5 @@ This platform is ready for deployment on Render.com's free Web Service tier.
 ### Carrom
 - Aim with mouse drag.
 - Release to strike.
-- Initial turn creates coins.
-- Pocket coins to score (simplified logic).
-
-## License
-MIT
+- Server-side physics ensures fair play.
+- Pocket coins to score (10 points per coin, -10 for foul).

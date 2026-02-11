@@ -115,12 +115,14 @@ createBtn.addEventListener('click', () => {
     const gameType = document.getElementById('game-type').value;
     const timeControl = document.getElementById('time-control').value;
     const isAi = document.getElementById('ai-mode').checked;
+    const difficulty = isAi ? parseInt(document.getElementById('ai-difficulty').value) : 1;
     const timeVal = parseInt(timeControl);
 
     socket.emit('createRoom', {
         gameType,
         timeControl: isNaN(timeVal) ? 0 : timeVal,
-        mode: isAi ? 'ai' : 'human'
+        mode: isAi ? 'ai' : 'human',
+        difficulty: isNaN(difficulty) ? 1 : difficulty
     });
 });
 

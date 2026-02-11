@@ -7,7 +7,7 @@ const ChessAI = require('./ai/chessEngine');
 const CarromAI = require('./ai/carromEngine');
 
 class GameManager {
-    constructor(io, roomId, gameType, timeControl, mode = 'human') {
+    constructor(io, roomId, gameType, timeControl, mode = 'human', difficulty = 1) {
         this.io = io;
         this.roomId = roomId;
         this.gameType = gameType;
@@ -18,6 +18,7 @@ class GameManager {
         this.timerInterval = null;
         this.startTime = Date.now();
         this.mode = mode;
+        this.difficulty = difficulty;
         this.ai = null;
 
         // Check for AI mode (suffix override)
@@ -32,7 +33,9 @@ class GameManager {
         switch (this.realGameType) {
             case 'chess':
                 this.game = new Chess(timeControl);
-                if (this.mode === 'ai') this.ai = new ChessAI(5); // Default difficulty
+                if (this.mode === 'ai') {
+                    this.ai = new ChessAI(this.difficulty);
+                }
                 break;
             case 'four-chess':
                 this.game = new FourPlayerChess(timeControl);
@@ -40,15 +43,13 @@ class GameManager {
                 break;
             case 'carrom':
                 this.game = new Carrom();
-                if (this.mode === 'ai') this.ai = new CarromAI(5);
+                if (this.mode === 'ai') this.ai = new CarromAI(this.difficulty);
                 break;
             default:
                 console.error('Unknown game type:', gameType);
         }
 
-        // Handle AI Logic later
-
-        if (this.timeControl > 0 && gameType !== 'carrom') {
+        if (this.timeControl > 0 && this.realGameType !== 'carrom') {
             this.startTimerLoop();
         }
     }
@@ -199,108 +200,109 @@ class GameManager {
     async endGame(result) {
         console.log(`Game Over in room ${this.roomId}. Winner: ${result.winner}`);
 
-        // Prepare Match Data
-        const playerIds = Object.values(this.playerMap);
-        if (playerIds.length < 2) return; // Don't record single player or guest games for now?
-        // Actually record if at least one registered user?
-        // Let's iterate all registered users involved.
+        // Only record if at least one human player was present
+        const playerIds = Object.keys(this.playerMap);
+        if (playerIds.length === 0) return;
 
         try {
             // Determine Winner User ID
-            // result.winner is usually 'w', 'b', or index.
-            // We need to map 'w' -> playerId -> userId.
-
-            // This mapping logic depends on Game implementation of 'players' object
-            // Chess: { white: socketId, black: socketId }
-            // Carrom: players array [socketId, socketId...]
-
             let winnerId = null;
             const gamePlayers = this.game.players;
 
-            // Resolve Winner ID
             if (this.realGameType === 'chess') {
-                const winnerColor = result.winner; // 'w' or 'b'
-                if (winnerColor === 'w') winnerId = gamePlayers.white === 'AI_BOT' ? 'AI_BOT' : this.playerMap[gamePlayers.white];
-                else if (winnerColor === 'b') winnerId = gamePlayers.black === 'AI_BOT' ? 'AI_BOT' : this.playerMap[gamePlayers.black];
+                const winnerColor = result.winner; // 'w', 'b', or 'Draw'
+                if (winnerColor !== 'Draw') {
+                    let winnerSocketId = (winnerColor === 'w') ? gamePlayers.white : gamePlayers.black;
+                    if (winnerSocketId) {
+                        winnerId = winnerSocketId.startsWith('AI_BOT') ? 'AI_BOT' : this.playerMap[winnerSocketId];
+                    }
+                }
+            } else if (this.realGameType === 'carrom') {
+                if (result.winner !== undefined && result.winner !== null) {
+                    const winnerSocketId = this.players[result.winner];
+                    if (winnerSocketId) {
+                        winnerId = winnerSocketId.startsWith('AI_BOT') ? 'AI_BOT' : this.playerMap[winnerSocketId];
+                    }
+                }
+            } else if (this.realGameType === 'four-chess') {
+                const winnerColor = result.winner;
+                if (winnerColor) {
+                    const winnerSocketId = this.game.players[winnerColor];
+                    if (winnerSocketId) {
+                        winnerId = winnerSocketId.startsWith('AI_BOT') ? 'AI_BOT' : this.playerMap[winnerSocketId];
+                    }
+                }
             }
-
-            // Handle AI and Spectators in playerIds
-            const validPlayerIds = playerIds.filter(id => id && id !== 'AI_BOT');
 
             // Retrieve Moves
             let moves = [];
             if (this.game && this.game.getHistory) {
+                // Only save minimal history to save space
                 moves = this.game.getHistory().map(m => ({
-                    action: m.san,
-                    timestamp: Date.now() // placeholder
+                    action: m.san || m.action || JSON.stringify(m),
+                    timestamp: Date.now()
                 }));
             }
 
             // Save Match
-            const match = await Match.create({
-                gameType: this.realGameType,
-                players: validPlayerIds,
-                result: {
-                    winner: (winnerId && winnerId !== 'AI_BOT') ? winnerId : null,
-                    reason: result.reason,
-                    score: result.score
-                },
-                moves: moves,
-                startedAt: this.startTime,
-                endedAt: Date.now()
-            });
+            const validPlayerIds = Object.values(this.playerMap).filter(uid => uid && uid !== 'AI_BOT');
 
-            // Update Users
-            for (const socketId of this.players) {
-                const userId = this.playerMap[socketId];
-                if (!userId) continue;
+            if (validPlayerIds.length > 0) {
+                const match = await Match.create({
+                    gameType: this.realGameType,
+                    players: validPlayerIds,
+                    result: {
+                        winner: (winnerId && winnerId !== 'AI_BOT') ? winnerId : null,
+                        reason: result.reason,
+                        score: result.score
+                    },
+                    moves: moves,
+                    startedAt: this.startTime,
+                    endedAt: Date.now()
+                });
 
-                const user = await User.findById(userId);
-                if (user) {
-                    // Update History
-                    const isWin = userId === winnerId;
-                    user.history.push({
-                        gameType: this.gameType,
-                        result: isWin ? 'win' : (result.winner ? 'loss' : 'draw'),
-                        opponent: 'Online Player', // simplified
-                        timestamp: Date.now()
-                    });
+                // Update Users
+                for (const socketId of this.players) {
+                    const userId = this.playerMap[socketId];
+                    if (!userId || userId === 'AI_BOT') continue;
 
-                    // Update Ratings (Elo Simplified)
-                    if (winnerId) {
-                        const change = isWin ? 10 : -10;
-                        if (!user.ratings[this.gameType]) user.ratings[this.gameType] = 1200;
-                        user.ratings[this.gameType] += change;
-                    }
+                    const user = await User.findById(userId);
+                    if (user) {
+                        const isWin = (winnerId && (userId === winnerId));
+                        const isDraw = !winnerId || result.winner === 'Draw';
 
-                    // Update Streak
-                    const now = new Date();
-                    const last = user.streak.lastPlayed ? new Date(user.streak.lastPlayed) : null;
+                        user.history.push({
+                            gameType: this.gameType,
+                            result: isWin ? 'win' : (isDraw ? 'draw' : 'loss'),
+                            opponent: 'Online Player',
+                            timestamp: Date.now()
+                        });
 
-                    if (last) {
-                        const diffTime = Math.abs(now - last);
-                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                        // If same day, ignore. If 1 day diff (yesterday), increment. If >1, reset.
-                        // Logic simplified:
-                        const isSameDay = now.getDate() === last.getDate() && now.getMonth() === last.getMonth();
-                        const isYesterday = (now - last) < 172800000 && !isSameDay; // Ultra simplified check
+                        // Update Ratings (Elo)
+                        if (!isDraw) {
+                            const change = isWin ? 10 : -10;
+                            if (!user.ratings[this.gameType]) user.ratings[this.gameType] = 1200;
+                            user.ratings[this.gameType] += change;
+                        }
+
+                        // Streak
+                        const now = new Date();
+                        const last = user.streak.lastPlayed ? new Date(user.streak.lastPlayed) : null;
+                        const isSameDay = last && (now.getDate() === last.getDate() && now.getMonth() === last.getMonth());
 
                         if (!isSameDay) {
-                            if (isYesterday || diffDays <= 2) { // tolerant
+                            const oneDay = 24 * 60 * 60 * 1000;
+                            if (last && (now - last) < (oneDay * 2)) {
                                 user.streak.current += 1;
                             } else {
                                 user.streak.current = 1;
                             }
                         }
-                    } else {
-                        user.streak.current = 1;
+                        user.streak.lastPlayed = now;
+                        await user.save();
                     }
-                    user.streak.lastPlayed = now;
-
-                    await user.save();
                 }
             }
-
         } catch (e) {
             console.error("Error saving game result:", e);
         }

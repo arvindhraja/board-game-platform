@@ -42,41 +42,78 @@ class ChessGame {
 
         if (action === 'move') {
             if (this.gameOver) return null;
-            const playerColor = this.getPlayerColor(playerId);
+
+            // Identity check
+            let playerColor = this.getPlayerColor(playerId);
             const currentTurn = this.chess.turn();
 
-            if (!playerColor && playerId !== 'AI_BOT') return null;
-            if (playerId !== 'AI_BOT' && playerColor !== currentTurn) {
-                throw new Error('Not your turn');
+            // AI Override
+            if (playerId && playerId.startsWith('AI_BOT')) {
+                playerColor = currentTurn;
+            }
+
+            if (!playerColor || playerColor !== currentTurn) {
+                return null; // Not allowed / Not your turn
             }
 
             try {
+                // Timer Logic
                 if (this.active && this.timeControl > 0) {
                     const now = Date.now();
                     const delta = now - this.lastMoveTime;
                     this.timeLeft[currentTurn] -= delta;
-                    if (this.timeLeft[currentTurn] < 0) this.timeLeft[currentTurn] = 0;
+                    if (this.timeLeft[currentTurn] < 0) {
+                        this.timeLeft[currentTurn] = 0;
+                        this.gameOver = true;
+                        this.winner = (currentTurn === 'w' ? 'b' : 'w');
+                        return {
+                            gameOver: true,
+                            winner: this.winner,
+                            reason: 'timeout',
+                            timeLeft: this.timeLeft
+                        };
+                    }
                 }
 
                 const move = this.chess.move(data);
                 if (move) {
-                    this.startTimer();
+                    this.lastMoveTime = Date.now();
+                    if (!this.active) this.active = true; // Start game on first move if not started
 
-                    const result = {
+                    const isGameOver = this.chess.isGameOver();
+                    let winner = null;
+                    let reason = null;
+
+                    if (isGameOver) {
+                        this.gameOver = true;
+                        if (this.chess.isCheckmate()) {
+                            // Turn has swapped to loser. Winner is previous turn.
+                            winner = (this.chess.turn() === 'w' ? 'b' : 'w');
+                            reason = 'Checkmate';
+                        } else {
+                            winner = 'Draw';
+                            if (this.chess.isStalemate()) reason = 'Stalemate';
+                            else if (this.chess.isThreefoldRepetition()) reason = 'Repetition';
+                            else if (this.chess.isInsufficientMaterial()) reason = 'Insufficient Material';
+                            else reason = 'Draw';
+                        }
+                        this.winner = winner;
+                    }
+
+                    return {
                         fen: this.chess.fen(),
                         turn: this.chess.turn(),
                         lastMove: move,
-                        gameOver: this.chess.isGameOver(),
-                        winner: this.chess.isCheckmate() ? currentTurn : (this.chess.isDraw() ? 'Draw' : null),
-                        reason: this.getGameOverReason(),
+                        gameOver: this.gameOver,
+                        winner: this.winner,
+                        reason: reason,
                         check: this.chess.inCheck(),
-                        checkmate: this.chess.isCheckmate(),
+                        history: this.chess.history({ verbose: true }),
                         timeLeft: this.timeLeft
                     };
-                    return result;
                 }
             } catch (e) {
-                console.log("Invalid move attempt:", e.message);
+                console.error("Chess Move Error:", e);
                 return null;
             }
         }

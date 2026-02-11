@@ -63,9 +63,18 @@
                         <option value="5">5 Minutes (Blitz)</option>
                         <option value="10">10 Minutes (Rapid)</option>
                     </select>
-                    <div style="margin: 10px 0;">
-                        <input type="checkbox" id="ai-mode">
-                        <label for="ai-mode">Play vs AI Bots</label>
+                    <div style="margin: 10px 0; display: flex; align-items: center; gap: 10px;">
+                        <div>
+                            <input type="checkbox" id="ai-mode"
+                                onchange="document.getElementById('ai-difficulty').style.display = this.checked ? 'inline-block' : 'none'">
+                            <label for="ai-mode">Play vs AI Bots</label>
+                        </div>
+                        <select id="ai-difficulty" style="display: none; padding: 2px 5px;">
+                            <option value="1">Easy</option>
+                            <option value="3">Medium</option>
+                            <option value="10">Hard</option>
+                            <option value="20">Grandmaster</option>
+                        </select>
                     </div>
                     <button id="create-btn">Create Room</button>
                 </div>

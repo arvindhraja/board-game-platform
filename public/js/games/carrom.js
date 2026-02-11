@@ -264,38 +264,16 @@ class CarromClient {
         }
 
         if (!moving && this.animating) {
-            // Turn Ended
+            // Turn Ended (Physical motion stopped)
             this.animating = false;
 
-            if (this.isMyTurn) {
-                // Rule Logic
-                const myColor = (this.myIndex === 0) ? 'white' : 'black';
-                const coinsAfter = this.coins.filter(c => c.active && c.color === myColor).length;
-                let switchTurn = true;
-
-                if (coinsAfter < this.coinsBeforeTurn) {
-                    switchTurn = false; // Pocketed own coin, go again
-                }
-
-                // Simple foul check: striker pocketed?
-                if (!this.striker.active) switchTurn = true;
-
-                // Reset Striker Logic locally
-                this.resetStriker();
-
-                this.socket.emit('gameAction', {
-                    roomId: this.roomId,
-                    action: 'endTurn',
-                    data: {
-                        coins: this.coins,
-                        striker: this.striker,
-                        switchTurn: switchTurn
-                    }
-                });
+            // Apply Server State if available
+            if (this.pendingState) {
+                this.applyState(this.pendingState);
+                this.pendingState = null;
             } else {
-                // Opponent turn ended (simulated locally)
-                // We wait for server authoritative 'stateUpdate' to snap positions
-                this.resetStriker();
+                // Waiting for server result
+                this.striker.visible = false; // Hide until update
             }
         }
     }
@@ -428,50 +406,78 @@ class CarromClient {
     }
 
     updateState(data) {
-        if (data.coins) this.coins = data.coins;
-        if (data.players) this.myIndex = data.players.indexOf(this.socket.id);
-        if (data.turn !== undefined) this.turnIndex = data.turn;
-
-        const turnIndicator = document.getElementById('turn-indicator');
-
-        if (data.event === 'shoot') {
-            if (data.pIndex !== this.myIndex) {
-                const startY = (data.pIndex === 0) ? 660 : 140;
-                // If 4 player, logic needed. For now 2.
-                this.striker.x = data.positionX;
-                this.striker.y = startY;
-                this.striker.vx = Math.cos(data.angle) * data.power;
-                this.striker.vy = Math.sin(data.angle) * data.power;
-                this.animating = true;
-            }
+        if (data.gameState) {
+            if (data.coins) this.coins = data.coins;
+            if (data.players) this.myIndex = data.players.indexOf(this.socket.id);
+            if (data.turn !== undefined) this.turnIndex = data.turn;
+            if (data.scores) this.scores = data.scores;
         }
 
-        if (data.event === 'stateUpdate') {
+        if (data.event === 'shotResult') {
+            const finalState = { coins: data.coins, turn: data.turn, scores: data.scores };
+
+            // If I am already animating (my shot), wait for finish.
+            // If I am NOT animating:
+            // 1. If it's opponent shot: start animation
+            // 2. If it's my shot (lag?): apply immediately
+
+            if (this.animating) {
+                this.pendingState = finalState;
+            } else {
+                if (!this.isMyTurn) {
+                    // Start Opponent Anim
+                    const start = data.start;
+                    this.striker.x = start.x;
+                    this.striker.y = start.y;
+                    this.striker.vx = start.vx;
+                    this.striker.vy = start.vy;
+                    this.striker.active = true;
+                    this.animating = true;
+                    this.pendingState = finalState;
+                } else {
+                    this.applyState(finalState);
+                }
+            }
+        } else if (data.event === 'stateUpdate') {
+            // Fallback
             this.coins = data.coins;
             this.striker = data.striker;
+            this.turnIndex = data.turn;
             this.animating = false;
         }
 
+        this.updateUI();
+    }
+
+    applyState(state) {
+        this.coins = state.coins;
+        this.turnIndex = state.turn;
+        if (state.scores) this.scores = state.scores;
+        this.updateUI();
+
+        // Reset Striker
+        this.striker.vx = 0; this.striker.vy = 0;
+        this.striker.active = true;
+
+        // Reposition for next turn
         this.isMyTurn = (this.turnIndex === this.myIndex);
-        if (turnIndicator) turnIndicator.innerText = this.isMyTurn ? "Your Turn" : "Opponent's Turn";
 
-        if (!this.animating) {
-            // Reset striker position logic based on turn
-            this.striker.vx = 0; this.striker.vy = 0;
-            this.striker.active = true;
-
-            // If it's my turn, place at my baseline
-            if (this.isMyTurn) {
-                this.striker.y = (this.myIndex === 1) ? 140 : 660;
-                this.striker.x = 400; // Center
-            } else {
-                // Hide off board or place at opponent baseline?
-                const opponentIndex = (this.turnIndex);
-                // Just keep it visible at opponent baseline
-                this.striker.y = (opponentIndex === 1) ? 140 : 660;
-                this.striker.x = 400;
-            }
+        if (this.isMyTurn) {
+            this.striker.y = (this.myIndex === 1) ? 140 : 660; // P1 Bottom, P2 Top
+            this.striker.x = 400;
+        } else {
+            // Opponent baseline visual
+            // If turnIndex is 0 (P1), y=660. If 1 (P2), y=140.
+            const oppY = (this.turnIndex === 1) ? 140 : 660;
+            this.striker.y = oppY;
+            this.striker.x = 400;
         }
+    }
+
+    updateUI() {
+        this.isMyTurn = (this.turnIndex === this.myIndex);
+        const turnIndicator = document.getElementById('turn-indicator');
+        if (turnIndicator) turnIndicator.innerText = this.isMyTurn ? "Your Turn" : "Opponent's Turn";
     }
 }
 

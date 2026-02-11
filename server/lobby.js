@@ -10,11 +10,12 @@ function initializeLobby(io) {
 
         console.log(`User connected: ${username} (${socket.id})`);
 
-        socket.on('createRoom', ({ gameType, timeControl, mode }) => {
+        socket.on('createRoom', ({ gameType, timeControl, mode, difficulty }) => {
             const roomId = uuidv4().slice(0, 8);
             const gameMode = mode || 'human';
+            const aiDifficulty = parseInt(difficulty) || 1;
 
-            const gameManager = new GameManager(io, roomId, gameType, timeControl, gameMode);
+            const gameManager = new GameManager(io, roomId, gameType, timeControl, gameMode, aiDifficulty);
 
             rooms[roomId] = {
                 id: roomId,

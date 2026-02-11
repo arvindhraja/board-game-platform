@@ -1,58 +1,58 @@
 # Extended Implementation Plan
 
 ## Goal
-Enhance the existing board game platform with timers, sound effects, improved UI/UX, and refined game logic for Standard Chess, Four-Player Chess, and Carrom, while maintaining Render compatibility and no-database architecture.
+Enhance the existing board game platform with timers, sound effects, improved UI/UX, and refined game logic for Standard Chess, Four-Player Chess, and Carrom, while ensuring robust deployment on Render with MongoDB.
 
 ## 1. Backend Updates (`server/`)
--   **`gameManager.js`**: Add timer management logic (decrementing time for active player). Handle timeout events.
--   **`lobby.js`**: Update room creation to accept time controls (e.g., 5 min, 10 min).
--   **`games/chess.js`**:
-    -   Validate turn switching with timer updates.
-    -   Handle check/checkmate detection more robustly if needed.
--   **`games/fourPlayerChess.js`**:
-    -   Implement player elimination logic fully.
-    -   Manage 4 separate timers.
--   **`games/carrom.js`**:
-    -   Refine physics for better collision detection.
-    -   Implement foul/penalty logic (e.g., pocketing striker).
+- [x] **`gameManager.js`**: Add timer management logic (decrementing time for active player). Handle timeout events.
+- [x] **`lobby.js`**: Update room creation to accept time controls (e.g., 5 min, 10 min).
+- [x] **`games/chess.js`**:
+    - [x] Validate turn switching with timer updates.
+    - [x] Handle check/checkmate detection robustly.
+    - [x] Integrity with Stockfish AI (Selectable Difficulty).
+- [x] **`games/fourPlayerChess.js`**:
+    - [x] Implement player elimination logic fully.
+    - [x] Manage 4 separate timers.
+- [x] **`games/carrom.js`**:
+    - [x] Refine physics for better collision detection (Server-Side).
+    - [x] Implement foul/penalty logic.
+- [x] **`auth`**: Signup/Login with JWT/Bcrypt and MongoDB.
+- [x] **`models`**: User (ratings, streak) and Match (history) schemas.
 
 ## 2. Frontend Updates (`public/`)
--   **`index.html`**:
-    -   Add timer displays for all players.
-    -   Add sound toggle button.
-    -   Enhance game selection UI (time control options).
--   **`css/styles.css`**:
-    -   Add "glow" effects for active player.
-    -   Responsive layout improvements.
-    -   Animations for moves/strikes.
--   **`js/app.js`**:
-    -   Handle timer update events from server.
-    -   Play sound effects on specific events.
--   **`js/games/*.js`**:
-    -   **Chess**: Add highlighting for legal moves.
-    -   **Carrom**: Add power indicator UI for striker.
+- [x] **`index.html`**:
+    - [x] Add timer displays for all players.
+    - [x] Add sound toggle button.
+    - [x] Enhance game selection UI (time control options & AI Difficulty).
+- [x] **`css/styles.css`**:
+    - [x] Add "glow" effects for active player.
+    - [x] Responsive layout improvements.
+    - [x] Animations for moves/strikes.
+- [x] **`js/app.js`**:
+    - [x] Handle timer update events from server.
+    - [x] Play sound effects on specific events.
+    - [x] Auth integration (Login/Signup/Guest).
+- [x] **`js/games/*.js`**:
+    - [x] **Chess**: Add highlighting for legal moves, checkmate modal.
+    - [x] **Carrom**: Client-side interpolation of server physics.
 
 ## 3. Sound Effects (`public/assets/sounds/`)
--   Add simple sound files:
-    -   `move.mp3` (Chess move)
-    -   `capture.mp3` (Chess capture)
-    -   `strike.mp3` (Carrom strike)
-    -   `pocket.mp3` (Carrom pocket)
-    -   `game-end.mp3`
+- [x] Add simple sound files (move, capture, strike, pocket, game-end).
 
 ## 4. Timers Implementation Strategy
--   **Server-side**: Store `timeLeft` for each player and `lastMoveTime`.
--   When a move is made, calculate delta and subtract from current player's time.
--   Broadcast updated times to all clients.
--   Use `setInterval` only when strict enforcement is needed or rely on client-side countdowns synced with server state. *Decision: Server maintains authoritative time, client does visual countdown.*
+- [x] **Server-side**: Store `timeLeft` for each player and `lastMoveTime`.
+- [x] Broadcast updated times to all clients.
 
 ## 5. Deployment
--   Ensure `package.json` includes all dependencies (no new ones expected, maybe `howler` for client audio if preferred, or vanilla JS `Audio`).
--   Verify `process.env.PORT` usage.
+- [x] Ensure `package.json` includes `stockfish` and `mongoose`.
+- [x] Create `verify_deployment.js` script.
+- [x] Update `README.md` with deployment instructions.
 
 ## Checklist
-- [ ] Create sound assets (placeholders or download free ones).
-- [ ] Implement server-side timer logic.
-- [ ] Update frontend to show timers and play sounds.
-- [ ] Refine Carrom physics and 4-player chess rules.
-- [ ] enhance UI with glow effects and responsive tweaks.
+- [x] Create sound assets.
+- [x] Implement server-side timer logic.
+- [x] Update frontend to show timers and play sounds.
+- [x] Refine Carrom physics and 4-player chess rules.
+- [x] Enhance UI with glow effects and modals.
+- [x] Integrate Stockfish AI.
+- [x] Implement Authentication & Database.

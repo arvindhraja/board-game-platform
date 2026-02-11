@@ -95,7 +95,7 @@ class StandardChessClient {
                     const square = this.squares[sqName];
 
                     const img = document.createElement('img');
-                    img.src = `assets/pieces/${piece.color}${piece.type.toLowerCase()}.svg`;
+                    img.src = `/assets/pieces/${piece.color}${piece.type.toUpperCase()}.svg`;
                     img.classList.add('piece');
                     square.appendChild(img);
                 }
@@ -259,18 +259,33 @@ class StandardChessClient {
         if (statusEl) {
             const turnText = this.chess.turn() === 'w' ? "White's Turn" : "Black's Turn";
             if (data.gameOver) {
-                const winner = data.winner === 'w' ? 'White' : (data.winner === 'b' ? 'Black' : 'Draw');
-                statusEl.innerText = data.checkmate ? `Checkmate! ${winner} wins.` : `Game Over (${data.reason || 'Draw'})`;
+                let winner = 'Draw';
+                if (data.winner === 'w') winner = 'White';
+                else if (data.winner === 'b') winner = 'Black';
 
-                // Popup
+                const reason = data.reason || (data.checkmate ? 'Checkmate' : 'Game Over');
+                let message = `${winner === 'Draw' ? 'Game Drawn' : winner + ' Wins'} by ${reason}`;
+
+                statusEl.innerText = message;
+
+                // Popup (Prevent duplicates)
                 if (!document.getElementById('game-over-modal')) {
                     const overlay = document.createElement('div');
                     overlay.id = 'game-over-modal';
-                    overlay.style.cssText = "position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: flex; justify-content: center; align-items: center; z-index: 2000; flex-direction: column; animation: fadeIn 0.5s;";
+                    overlay.style.cssText = `
+                        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+                        background: rgba(0,0,0,0.85); display: flex; justify-content: center; align-items: center;
+                        z-index: 2000; flex-direction: column; animation: fadeIn 0.5s;
+                    `;
                     overlay.innerHTML = `
-                        <h1 style="color: #ffd700; font-size: 3rem; margin-bottom: 10px;">${winner === 'Draw' ? 'Draw!' : winner + ' Wins!'}</h1>
-                        <p style="color: #ddd; font-size: 1.5rem; margin-bottom: 20px;">${data.reason || (data.checkmate ? 'Checkmate' : 'Game Over')}</p>
-                        <button onclick="this.parentElement.remove()" style="padding: 10px 30px; font-size: 1.1rem; cursor: pointer; background: #4caf50; color: #fff; border: none; border-radius: 5px;">Close</button>
+                        <div style="background: #2a2a2a; padding: 40px; border-radius: 12px; text-align: center; border: 1px solid #444; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+                            <h1 style="color: #ffd700; font-size: 3rem; margin: 0 0 10px 0;">${winner === 'Draw' ? 'Draw!' : winner + ' Wins!'}</h1>
+                            <p style="color: #ccc; font-size: 1.2rem; margin-bottom: 30px;">${reason}</p>
+                            <button onclick="this.closest('#game-over-modal').remove()" 
+                                style="padding: 12px 30px; font-size: 1.1rem; cursor: pointer; background: #e74c3c; color: #fff; border: none; border-radius: 6px; font-weight: bold; transition: background 0.2s;">
+                                Close
+                            </button>
+                        </div>
                     `;
                     document.body.appendChild(overlay);
                 }

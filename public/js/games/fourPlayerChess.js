@@ -46,7 +46,7 @@ class FourPlayerChessClient {
                         let prefix = 'w';
                         if (piece.color === 'black' || piece.color === 'blue') prefix = 'b';
 
-                        img.src = `assets/pieces/${prefix}${piece.type.toLowerCase()}.svg`;
+                        img.src = `/assets/pieces/${prefix}${piece.type.toUpperCase()}.svg`;
 
                         // Apply filters for Red and Blue
                         if (piece.color === 'red') {

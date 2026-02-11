@@ -4,7 +4,10 @@ class CarromAI {
     }
 
     calculateShot(coins, striker) {
+        console.log("CarromAI: Calculating shot...");
         let targets = coins.filter(c => c.active);
+        console.log(`CarromAI: Found ${targets.length} active targets.`);
+
         if (targets.length === 0) return null;
 
         let bestShot = null;
@@ -19,11 +22,11 @@ class CarromAI {
                 const cpDist = Math.hypot(cpDx, cpDy);
                 const cpAngle = Math.atan2(cpDy, cpDx);
 
-                const impactDist = 14 + 20;
+                const impactDist = 14 + 20; // Radius sums
                 const impactX = coin.x - Math.cos(cpAngle) * impactDist;
                 const impactY = coin.y - Math.sin(cpAngle) * impactDist;
 
-                const strikerY = 140;
+                const strikerY = 140; // AI is Player 2 (Top)
 
                 let strikerX = impactX;
                 if (strikerX < 100) strikerX = 100;
@@ -48,10 +51,12 @@ class CarromAI {
         });
 
         if (bestShot) {
+            console.log("CarromAI: Shot found", bestShot);
             bestShot.angle += (Math.random() - 0.5) * 0.05;
             return bestShot;
         }
 
+        console.log("CarromAI: Using fallback shot");
         return {
             angle: Math.PI / 2,
             power: 20,
